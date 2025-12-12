@@ -1,0 +1,24 @@
+# Dependencies
+
+# Build
+dist
+
+# Logs
+logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment
+.env*
+!.env.example
+
+# Testing
+coverage
+
+# Claude
+.claude/*.local.json
+.claude/.cache/
+CLAUDE.local.md

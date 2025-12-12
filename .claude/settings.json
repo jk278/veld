@@ -1,0 +1,31 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "WebSearch",
+      "WebFetch",
+      "mcp__ide__getDiagnostics",
+      "mcp__exa__web_search_exa",
+      "mcp__exa__get_code_context_exa",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(git:log,status,diff)",
+      "Bash(pnpm build)"
+    ],
+    "ask": [],
+    "deny": [
+      "Bash(rm -rf /:*)",
+      "Bash(chmod:777)",
+      "Bash(shutdown:*)",
+      "Bash(reboot:*)",
+      "Bash(mkfs:*)",
+      "Bash(dd:*)",
+      "Read(./**/.env*)",
+      "Read(./**/secrets/**)",
+      "Read(./**/config/*.key)",
+      "Read(./**/credentials/**)",
+      "Read(./**/.claude/*.local.json)"
+    ]
+  }
+}

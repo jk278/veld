@@ -125,6 +125,45 @@
 
 ---
 
+## 🚀 快速上手指南 (For Newcomers)
+
+如果你刚接触 Dioxus 0.7，建议按以下步骤学习：
+
+### 新手三步走
+
+**第一步：熟悉基础 (30-60分钟)**
+- 阅读 `README.md` 中的 "Learning Path" 部分
+- 运行 `dx serve` 查看基础项目结构
+- 理解 Dioxus 组件系统和状态管理
+
+**第二步：实践交互 (1-2小时)**
+- 修改 `src/main.rs` 添加简单的计数器
+- 学习使用 Dioxus hooks (use_state, use_effect)
+- 尝试添加表单输入和样式
+
+**第三步：系统集成 (2-3小时)**
+- 深入 Phase 1-3 的实际开发
+- 理解系统托盘和全局快捷键
+- 集成 AI 客户端功能
+
+### 项目结构解读
+```
+veld/
+├── src/
+│   ├── main.rs      # 应用入口，负责启动和系统托盘初始化
+│   └── app.rs       # 未来将分离出主要 UI 组件
+├── assets/          # 静态资源（图标、样式等）
+├── Cargo.toml       # 项目依赖和配置
+└── Dioxus.toml      # Dioxus 特定配置
+```
+
+### 学习资源
+- [Dioxus 0.7 官方文档](https://dioxuslabs.com/learn/0.7/)
+- 项目 README.md 中的资源链接
+- 开发进度跟踪（本文件）
+
+---
+
 ## 🐛 已知问题
 
 暂无

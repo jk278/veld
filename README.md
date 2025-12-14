@@ -31,6 +31,38 @@ cd veld
 dx serve
 ```
 
+## 📚 Learning Path
+
+New to Dioxus 0.7? Follow this progressive learning path:
+
+### Phase 1: Basic Setup (30-60 minutes)
+- [ ] Understand Dioxus project structure
+- [ ] Set up basic desktop application
+- [ ] Create simple UI with button and counter
+- [ ] Learn component-based UI development
+
+### Phase 2: Interactive Features (1-2 hours)
+- [ ] Add form inputs and state management
+- [ ] Implement basic styling
+- [ ] Practice Rust GUI patterns
+
+### Phase 3: System Integration (2-3 hours)
+- [ ] Integrate system tray functionality
+- [ ] Register global shortcuts
+- [ ] Add AI client capabilities
+- [ ] Build pre-configured tools
+
+### Learning Goals
+- Master Dioxus 0.7 fundamentals
+- Understand desktop app development patterns
+- Build real-world cross-platform applications
+- Integrate system-level features (tray, shortcuts)
+
+### Resources
+- [Dioxus 0.7 Documentation](https://dioxuslabs.com/learn/0.7/)
+- [Dioxus GitHub](https://github.com/DioxusLabs/dioxus)
+- [Development Progress](veld-progress.md)
+
 ## 🎯 Use Cases
 
 - **Developers**: Explain code, generate snippets, refactor functions

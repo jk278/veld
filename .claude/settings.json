@@ -27,5 +27,9 @@
       "Read(./**/credentials/**)",
       "Read(./**/.claude/*.local.json)"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "powershell -File \".claude/statusline.ps1\""
   }
 }

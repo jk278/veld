@@ -26,7 +26,6 @@
     ],
     "ask": [],
     "deny": [
-      "Bash(cat,dir,less)",
       "Bash(rm -rf /:*)",
       "Bash(chmod:777)",
       "Bash(shutdown:*)",

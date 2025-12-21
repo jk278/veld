@@ -25,6 +25,11 @@ logs
 coverage
 
 # Claude
-.claude/*.local.json
 .claude/.cache/
 CLAUDE.local.md
+
+# local JSON config files
+*.local.json
+
+# Dependencies
+node_modules

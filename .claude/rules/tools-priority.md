@@ -1,4 +1,4 @@
 # Tools Priority
 
+- Web search: WebSearch > MiniMax > exa
 - Code context: context7 > exa
-- Web search: WebSearch > exa

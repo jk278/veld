@@ -4,11 +4,8 @@
     "anthropic.claude-code",
     // language
     "rust-lang.rust-analyzer",
-    // functional
-    "wakatime.vscode-wakatime",
+    "tamasfe.even-better-toml",
     // UI
     "pkief.material-icon-theme",
-    // AI
-    "vicanent.gcmp"
   ]
 }

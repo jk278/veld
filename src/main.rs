@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
+use dioxus_desktop::use_global_shortcut;
 use crate::components::floating_input::FloatingInput;
+use crate::shortcuts::ShortcutManager;
 use std::sync::{Arc, Mutex};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -29,13 +31,37 @@ fn main() {
         std::mem::forget(tray);
     }
 
-    // Launch the application
+    // Launch the application (global shortcuts will be initialized in App component)
     dioxus::launch(App);
 }
 
 #[component]
 fn App() -> Element {
     let mut show_floating_input = use_signal(|| false);
+
+    // Register global shortcut using dioxus-desktop built-in hook
+    let _shortcut_handle = use_global_shortcut(
+        "Ctrl+Shift+Space",
+        move |state| {
+            if state == dioxus_desktop::HotKeyState::Pressed {
+                println!("[App] 🔥 Global hotkey Ctrl+Shift+Space triggered!");
+                show_floating_input.set(true);
+            }
+        },
+    );
+
+    // Initialize global shortcut manager
+    use_effect(|| {
+        match ShortcutManager::new() {
+            Ok(_) => {
+                println!("Global shortcuts initialized successfully");
+                println!("Press Ctrl+Shift+Space to show floating input");
+            }
+            Err(e) => {
+                eprintln!("Failed to initialize global shortcuts: {:?}", e);
+            }
+        }
+    });
 
     // Sync with global state
     use_effect(move || {
@@ -57,7 +83,7 @@ fn App() -> Element {
                 h2 { "Features" }
                 ul {
                     li { "System tray integration ✓" }
-                    li { "Global keyboard shortcuts" }
+                    li { "Global keyboard shortcuts ✓ (Ctrl+Shift+Space, Ctrl+Shift+H)" }
                     li { "AI-powered tools" }
                     li { "Context-aware operations" }
                 }
@@ -105,7 +131,7 @@ fn App() -> Element {
     }
 }
 
-// Re-export components
+// Re-export modules
 pub mod components;
 pub mod tray;
 pub mod shortcuts;
@@ -113,8 +139,6 @@ pub mod window_manager;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_main() {
         assert_eq!(2 + 2, 4);

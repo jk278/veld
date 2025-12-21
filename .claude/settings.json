@@ -10,9 +10,19 @@
       "mcp__exa__get_code_context_exa",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
+      "mcp__MiniMax__web_search",
+      "mcp__MiniMax__understand_image",
       "Bash(git:log,status,diff)",
       "Bash(pnpm build)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "Command(add-rule)",
+      "Command(analyze-doc),",
+      "Command(deslop),",
+      "Command(response-style),",
+      "Skill(code-reviewer)",
+      "Skill(git-analyzer)",
+      "Skill(product-manager)",
+      "Skill(debugging-assistant)"
     ],
     "ask": [],
     "deny": [
@@ -23,14 +33,14 @@
       "Bash(mkfs:*)",
       "Bash(dd:*)",
       "Read(./**/.env*)",
+      "Read(./**/*.local.json)",
       "Read(./**/secrets/**)",
       "Read(./**/config/*.key)",
-      "Read(./**/credentials/**)",
-      "Read(./**/.claude/*.local.json)"
+      "Read(./**/credentials/**)"
     ]
   },
   "statusLine": {
     "type": "command",
-    "command": "powershell -File \".claude/statusline.ps1\""
+    "command": "powershell -File \".claude/custom/statusline.ps1\""
   }
 }

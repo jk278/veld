@@ -2,66 +2,25 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Switch to Kimi Environment",
+      "label": "Switch Env for Claude",
       "type": "shell",
-      "command": "node",
+      "command": "pnpm",
       "args": [
-        "${workspaceFolder}/.claude/env-switch/index.js",
-        "--env",
-        "env_kimi"
+        "tsx",
+        "${workspaceFolder}/.claude/custom/env-switch/index.tsx"
       ],
       "group": "build",
       "presentation": {
         // "echo": true,
-        "reveal": "never" // "always", "silent", "never"
-        // "focus": false,
-        // "panel": "shared"
+        // "reveal": "always",
+        "focus": true
+        // "panel": "shared",
+        // "close": false,
         // "showReuseMessage": true,
         // "clear": false
       },
       // "runOptions": { "reevaluateOnRerun": true, "runOn": "default" },
       "problemMatcher": []
     },
-    {
-      "label": "Switch to MiniMax Environment",
-      "type": "shell",
-      "command": "node",
-      "args": [
-        "${workspaceFolder}/.claude/env-switch/index.js",
-        "--env",
-        "env_minimax"
-      ],
-      "group": "build",
-      "presentation": {
-        "reveal": "never"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Switch to GLM Environment",
-      "type": "shell",
-      "command": "node",
-      "args": [
-        "${workspaceFolder}/.claude/env-switch/index.js",
-        "--env",
-        "env_glm"
-      ],
-      "group": "build",
-      "presentation": {
-        "reveal": "never"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Show Available Environments",
-      "type": "shell",
-      "command": "node",
-      "args": ["${workspaceFolder}/.claude/env-switch/index.js"],
-      "group": "build",
-      "presentation": {
-        "focus": true
-      },
-      "problemMatcher": []
-    }
   ]
 }

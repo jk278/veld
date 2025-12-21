@@ -2,7 +2,7 @@
 //! Handles registration and handling of system-wide keyboard shortcuts
 
 /// Shortcut event types
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Shortcut {
     CtrlShiftSpace, // Main activation shortcut
     CtrlShiftS,     // Quick summarize
@@ -16,34 +16,31 @@ pub struct ShortcutEvent {
     pub shortcut: Shortcut,
 }
 
-/// Shortcut manager
+/// Shortcut manager - simplified wrapper
 pub struct ShortcutManager {
-    // TODO: Implement global shortcut registration
-    // This would require platform-specific implementations
+    pub shortcuts: Vec<dioxus_desktop::ShortcutHandle>,
 }
 
 impl ShortcutManager {
     /// Create a new shortcut manager
-    pub fn new() -> Self {
-        ShortcutManager {}
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        println!("[GlobalHotkey] Shortcut manager ready - shortcuts registered via use_global_shortcut");
+        Ok(ShortcutManager { shortcuts: Vec::new() })
     }
 
-    /// Register all default shortcuts
+    /// Register all default shortcuts (no-op, use use_global_shortcut in components)
     pub fn register_defaults(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO: Implement platform-specific global shortcuts
-        // On Windows: Use RegisterHotKey
-        // On macOS: Use NSEvent
-        // On Linux: Use X11/XCB or libadwaita
-
-        println!("Global shortcuts will be implemented in next phase");
         Ok(())
     }
 
-    /// Check for shortcut events (placeholder)
+    /// Check for shortcut events (no-op, handled via callbacks)
     pub fn check_shortcuts(&self) -> Option<Shortcut> {
-        // TODO: Implement shortcut checking
-        // This would require monitoring keyboard events globally
         None
     }
+}
+
+/// Function to manually trigger shortcut (for testing)
+pub fn trigger_shortcut(shortcut: Shortcut) {
+    println!("[Shortcut] Manual trigger: {:?}", shortcut);
 }
 

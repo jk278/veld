@@ -1,5 +1,11 @@
 use dioxus::prelude::*;
-use dioxus_desktop::{use_global_shortcut, use_tray_icon_event_handler, trayicon::TrayIconEvent};
+use dioxus_desktop::{
+    use_global_shortcut,
+    use_tray_icon_event_handler,
+    use_tray_menu_event_handler,
+    trayicon::TrayIconEvent,
+    DesktopContext
+};
 use crate::components::floating_input::FloatingInput;
 use crate::shortcuts::ShortcutManager;
 use std::sync::{Arc, Mutex};
@@ -14,7 +20,7 @@ fn main() {
     // Initialize global state for window control
     SHOW_FLOATING_INPUT.set(Arc::new(Mutex::new(false))).unwrap();
 
-    // Initialize system tray before launching the app
+    // Restore original working code - tray created in main
     let tray = match crate::tray::SystemTray::new() {
         Ok(tray) => {
             println!("System tray initialized successfully");
@@ -31,13 +37,14 @@ fn main() {
         std::mem::forget(tray);
     }
 
-    // Launch the application (global shortcuts will be initialized in App component)
+    // Launch the application
     dioxus::launch(App);
 }
 
 #[component]
 fn App() -> Element {
     let mut show_floating_input = use_signal(|| false);
+    let _desktop_ctx = use_context::<DesktopContext>();
 
     // Register global shortcut using dioxus-desktop built-in hook
     let _shortcut_handle = use_global_shortcut(
@@ -61,6 +68,23 @@ fn App() -> Element {
                 }
                 // Note: Right click is handled automatically by the system to show menu
                 // We don't need to handle it here
+            }
+            _ => {}
+        }
+    });
+
+    // Handle tray menu item clicks - NOTE: This may not work due to lifecycle mismatch
+    // The menu items might appear disabled (gray) because the tray is created in main()
+    // but this handler is registered in the App component
+    use_tray_menu_event_handler(move |event: &dioxus_desktop::trayicon::menu::MenuEvent| {
+        match event.id.as_ref() {
+            "show" => {
+                println!("[App] 📋 Menu 'Show Floating Input' clicked");
+                show_floating_input.set(true);
+            }
+            "quit" => {
+                println!("[App] 📋 Menu 'Exit' clicked");
+                std::process::exit(0);
             }
             _ => {}
         }
@@ -146,6 +170,7 @@ fn App() -> Element {
         }
     }
 }
+
 
 // Re-export modules
 pub mod components;

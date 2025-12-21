@@ -22,5 +22,20 @@
       // "runOptions": { "reevaluateOnRerun": true, "runOn": "default" },
       "problemMatcher": []
     },
+    {
+      "label": "Serve Dioxus Dev",
+      "type": "shell",
+      "command": "dx",
+      "args": [
+        "serve"
+      ],
+      "group": "build",
+      "presentation": {
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    }
   ]
 }

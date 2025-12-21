@@ -1,7 +1,9 @@
 //! System tray management for Veld
 //! Handles creating and managing the system tray icon and menu using dioxus-desktop built-in APIs
 
-use dioxus_desktop::trayicon::{TrayIcon, TrayIconAttributes, Icon, menu::{Menu, PredefinedMenuItem}};
+use dioxus_desktop::trayicon::{
+    TrayIcon, TrayIconAttributes, Icon, menu::{Menu, MenuItemBuilder, MenuId, PredefinedMenuItem}
+};
 
 /// Tray event types
 #[derive(Debug, Clone)]
@@ -11,8 +13,10 @@ pub enum TrayEvent {
 }
 
 /// System tray manager
+#[derive(Clone)]
 pub struct SystemTray {
-    _tray_icon: TrayIcon,
+    // Use Arc to allow cloning
+    _tray_handle: std::sync::Arc<TrayIcon>,
     _menu: Menu,
 }
 
@@ -27,13 +31,16 @@ impl SystemTray {
         // Create a context menu for the tray icon (required for Linux to show the icon)
         let menu = Menu::new();
 
-        // Add cross-platform compatible menu items
-        let show_item = PredefinedMenuItem::about(
-            Some("Show Floating Input"),
-            None,
-        );
+        // Add cross-platform compatible menu items with IDs
+        let show_item = MenuItemBuilder::new()
+            .id(MenuId::new("show"))
+            .text("Show Floating Input")
+            .build();
         let separator = PredefinedMenuItem::separator();
-        let close_item = PredefinedMenuItem::close_window(Some("Exit"));
+        let close_item = MenuItemBuilder::new()
+            .id(MenuId::new("quit"))
+            .text("Exit")
+            .build();
 
         menu.append_items(&[&show_item, &separator, &close_item])?;
 
@@ -51,7 +58,7 @@ impl SystemTray {
         println!("[SystemTray] ✓ Tray icon created successfully with context menu");
 
         Ok(SystemTray {
-            _tray_icon: tray_icon,
+            _tray_handle: std::sync::Arc::new(tray_icon),
             _menu: menu,
         })
     }

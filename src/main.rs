@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use dioxus_desktop::use_global_shortcut;
+use dioxus_desktop::{use_global_shortcut, use_tray_icon_event_handler, trayicon::TrayIconEvent};
 use crate::components::floating_input::FloatingInput;
 use crate::shortcuts::ShortcutManager;
 use std::sync::{Arc, Mutex};
@@ -49,6 +49,22 @@ fn App() -> Element {
             }
         },
     );
+
+    // Handle tray icon events - ONLY left click triggers floating input
+    // Right click will automatically show the context menu (handled by system)
+    use_tray_icon_event_handler(move |event| {
+        match event {
+            TrayIconEvent::Click { button, .. } => {
+                if *button == dioxus_desktop::trayicon::MouseButton::Left {
+                    println!("[App] 🖱️ Left click - showing floating input");
+                    show_floating_input.set(true);
+                }
+                // Note: Right click is handled automatically by the system to show menu
+                // We don't need to handle it here
+            }
+            _ => {}
+        }
+    });
 
     // Initialize global shortcut manager
     use_effect(|| {

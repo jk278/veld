@@ -7,6 +7,8 @@
 ### 📁 项目结构
 ```
 veld/
+├── docs/                   # 文档
+│   └── DIoxus_Desktop_API_QuickRef.md  # Dioxus 0.7 Desktop API 快速参考
 ├── Cargo.toml              # 项目配置
 ├── src/
 │   ├── main.rs            # 应用入口 + 系统托盘初始化
@@ -292,7 +294,7 @@ async fn get_context() -> Option<String> {
 ### 📚 学习资源
 
 - [Dioxus 官方文档](https://dioxuslabs.com/learn/0.7/)
-- [Rust Global Shortcuts](https://docs.rs/winit/*/winit/platform/global_shortcut/)
+- [Dioxus Desktop API 快速参考](docs/DIoxus_Desktop_API_QuickRef.md) ⚡ **必读！避免重复造轮子**
 - [System Tray 指南](https://github.com/tauri-apps/tauri/tree/dev/packages/tauri)
 - [OpenAI API 文档](https://platform.openai.com/docs)
 

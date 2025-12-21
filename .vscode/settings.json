@@ -9,5 +9,6 @@
     "editor.inlineSuggest.enabled": false
   },
   "editor.fontFamily": "JetBrains Mono, Fira Code, Google Sans Code, Source Code Pro",
-  "editor.fontLigatures": true
+  "editor.fontLigatures": true,
+  "rust-analyzer.checkOnSave": false
 }

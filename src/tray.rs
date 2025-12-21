@@ -1,10 +1,7 @@
 //! System tray management for Veld
-//! Handles creating and managing the system tray icon and menu
+//! Handles creating and managing the system tray icon and menu using dioxus-desktop built-in APIs
 
-use tray_icon::{
-    menu::Menu,
-    TrayIcon, TrayIconBuilder,
-};
+use dioxus_desktop::trayicon::{TrayIcon, TrayIconAttributes, Icon, menu::{Menu, PredefinedMenuItem}};
 
 /// Tray event types
 #[derive(Debug, Clone)]
@@ -16,49 +13,46 @@ pub enum TrayEvent {
 /// System tray manager
 pub struct SystemTray {
     _tray_icon: TrayIcon,
+    _menu: Menu,
 }
 
 impl SystemTray {
-    /// Create a new system tray
+    /// Create a new system tray using dioxus-desktop built-in API
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        // Create a simple menu with items
+        println!("[SystemTray] Creating tray icon with dioxus-desktop built-in API...");
+
+        // Load icon from file (favicon.ico) with specific size
+        let icon = Icon::from_path("assets/favicon.ico", None)?;
+
+        // Create a context menu for the tray icon (required for Linux to show the icon)
         let menu = Menu::new();
 
-        // Create icon (use a simple colored icon for now)
-        let icon = create_icon()?;
+        // Add cross-platform compatible menu items
+        let show_item = PredefinedMenuItem::about(
+            Some("Show Floating Input"),
+            None,
+        );
+        let separator = PredefinedMenuItem::separator();
+        let close_item = PredefinedMenuItem::close_window(Some("Exit"));
 
-        // Build the tray icon
-        let _tray_icon = TrayIconBuilder::new()
-            .with_menu(Box::new(menu))
-            .with_tooltip("Veld - AI Toolkit")
-            .with_icon(icon)
-            .build()?;
+        menu.append_items(&[&show_item, &separator, &close_item])?;
+
+        // Configure tray icon attributes with menu
+        let attrs = TrayIconAttributes {
+            icon: Some(icon),
+            tooltip: Some("Veld - AI Toolkit".to_string()),
+            menu: Some(Box::new(menu.clone())),
+            menu_on_left_click: false, // Disable default left-click menu behavior
+            ..Default::default()
+        };
+
+        // Create the tray icon
+        let tray_icon = TrayIcon::new(attrs)?;
+        println!("[SystemTray] ✓ Tray icon created successfully with context menu");
 
         Ok(SystemTray {
-            _tray_icon,
+            _tray_icon: tray_icon,
+            _menu: menu,
         })
     }
-
-    /// Handle tray events (to be called in the event loop)
-    pub fn handle_events(&self) -> Option<TrayEvent> {
-        // TODO: Implement tray event handling
-        None
-    }
 }
-
-fn create_icon() -> Result<tray_icon::Icon, Box<dyn std::error::Error>> {
-    // Load favicon.ico as the tray icon
-    let icon_path = std::path::Path::new("assets/favicon.ico");
-
-    // Check if the file exists
-    if !icon_path.exists() {
-        return Err(format!("Icon file not found: {}", icon_path.display()).into());
-    }
-
-    // Load the icon from path
-    let icon = tray_icon::Icon::from_path(icon_path, Some((64, 64)))?;
-
-    Ok(icon)
-}
-
-

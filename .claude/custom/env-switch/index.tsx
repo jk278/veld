@@ -81,8 +81,9 @@ const EnvSwitcher = () => {
       // 写入设置文件
       fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
 
-      console.log(`✅ 环境已切换到: ${env}`);
-      process.exit(0);
+      setCurrentEnvKey(env);
+      // 等待UI更新显示 ✓ current 后退出
+      setTimeout(() => process.exit(0), 50);
     } catch (err) {
       setError(
         `切换环境时出错: ${err instanceof Error ? err.message : String(err)}`,

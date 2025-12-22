@@ -12,110 +12,78 @@ pub fn About() -> Element {
 
     rsx! {
         div {
-            style: "
-                max-width: 800px;
-                margin: 0 auto;
-            ",
+            class: "max-w-4xl mx-auto space-y-6",
 
             h1 {
-                style: "
-                    font-size: 2rem;
-                    font-weight: 300;
-                    margin-bottom: 2rem;
-                    color: {theme().text_primary};
-                ",
+                class: "text-3xl font-light text-text-primary mb-8",
+                style: "color: {theme().text_primary}",
                 "About Veld"
             }
 
             div {
-                style: "
-                    background: {theme().bg_surface};
-                    border: 1px solid {theme().border};
-                    border-radius: 8px;
-                    padding: 24px;
-                    margin-bottom: 24px;
-                ",
+                class: "bg-bg-surface border border-border rounded-lg p-6 space-y-4",
+                style: "background: {theme().bg_surface}; border-color: {theme().border}",
 
                 h2 {
-                    style: "
-                        font-size: 1.3rem;
-                        margin: 0 0 16px 0;
-                        color: {theme().text_primary};
-                    ",
-                    "Veld - AI Toolkit for Developers"
+                    class: "text-xl text-text-primary mb-4",
+                    style: "color: {theme().text_primary}",
+                    "🦀 Veld - AI Toolkit for Developers"
                 }
 
                 p {
-                    style: "
-                        color: {theme().text_secondary};
-                        line-height: 1.6;
-                        margin-bottom: 16px;
-                    ",
+                    class: "text-text-secondary leading-relaxed",
+                    style: "color: {theme().text_secondary}; line-height: 1.6; margin-bottom: 16px",
                     "Veld is a cross-platform system tray tool that provides quick access to AI assistant functionality through keyboard shortcuts. Built with Dioxus 0.7."
                 }
 
                 p {
-                    style: "
-                        color: {theme().text_secondary};
-                        line-height: 1.6;
-                    ",
+                    class: "text-text-secondary leading-relaxed",
+                    style: "color: {theme().text_secondary}; line-height: 1.6",
                     "Features include floating input windows, pre-configured prompts, context menus, and real-time AI interaction to improve developer productivity."
                 }
             }
 
             div {
-                style: "
-                    background: {theme().bg_surface};
-                    border: 1px solid {theme().border};
-                    border-radius: 8px;
-                    padding: 24px;
-                ",
+                class: "bg-bg-surface border border-border rounded-lg p-6 space-y-4",
+                style: "background: {theme().bg_surface}; border-color: {theme().border}",
 
                 h2 {
-                    style: "
-                        font-size: 1.3rem;
-                        margin: 0 0 16px 0;
-                        color: {theme().text_primary};
-                    ",
-                    "Technology Stack"
+                    class: "text-xl text-text-primary mb-4",
+                    style: "color: {theme().text_primary}",
+                    "🛠️ Technology Stack"
                 }
 
                 ul {
-                    style: "
-                        list-style: none;
-                        padding: 0;
-                    ",
+                    class: "space-y-2",
                     li {
-                        style: "
-                            padding: 8px 0;
-                            color: {theme().text_secondary};
-                            font-family: monospace;
-                        ",
-                        "• Dioxus 0.7 - UI framework"
+                        class: "flex items-center gap-3 text-text-secondary font-mono text-sm",
+                        style: "color: {theme().text_secondary}; padding: 8px 0",
+                        span { class: "text-primary", "▸" }
+                        "Dioxus 0.7 - UI framework"
                     }
                     li {
-                        style: "
-                            padding: 8px 0;
-                            color: {theme().text_secondary};
-                            font-family: monospace;
-                        ",
-                        "• Rust - Programming language"
+                        class: "flex items-center gap-3 text-text-secondary font-mono text-sm",
+                        style: "color: {theme().text_secondary}; padding: 8px 0",
+                        span { class: "text-primary", "▸" }
+                        "Rust - Programming language"
                     }
                     li {
-                        style: "
-                            padding: 8px 0;
-                            color: {theme().text_secondary};
-                            font-family: monospace;
-                        ",
-                        "• Tao/Wry - Window management"
+                        class: "flex items-center gap-3 text-text-secondary font-mono text-sm",
+                        style: "color: {theme().text_secondary}; padding: 8px 0",
+                        span { class: "text-primary", "▸" }
+                        "TailwindCSS - Styling framework"
                     }
                     li {
-                        style: "
-                            padding: 8px 0;
-                            color: {theme().text_secondary};
-                            font-family: monospace;
-                        ",
-                        "• System Tray API - Cross-platform tray support"
+                        class: "flex items-center gap-3 text-text-secondary font-mono text-sm",
+                        style: "color: {theme().text_secondary}; padding: 8px 0",
+                        span { class: "text-primary", "▸" }
+                        "Tao/Wry - Window management"
+                    }
+                    li {
+                        class: "flex items-center gap-3 text-text-secondary font-mono text-sm",
+                        style: "color: {theme().text_secondary}; padding: 8px 0",
+                        span { class: "text-primary", "▸" }
+                        "System Tray API - Cross-platform tray support"
                     }
                 }
             }

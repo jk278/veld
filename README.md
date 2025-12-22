@@ -21,15 +21,27 @@ Like an open **veld** (prairie), Veld provides an expansive space for your thoug
 
 ## 🚀 Quick Start
 
-```bash
-# Install Dioxus CLI
-cargo install dioxus-cli
+### Prerequisites
+- [Rust](https://rustup.rs/) (latest stable)
+- [Node.js](https://nodejs.org/) (v18+)
+- [pnpm](https://pnpm.io/)
 
-# Clone and run
+### Installation & Setup
+
+```bash
 git clone https://github.com/yourusername/veld.git
 cd veld
-dx serve
+cargo install dioxus-cli
+pnpm install
 ```
+
+### Development
+In VSCode, press `Ctrl+Shift+B` and select **"Run Dev Setup"**
+
+### Building for Production
+
+```bash
+pnpm build  # Compiles TailwindCSS app → + Rust target/
 
 ## 📚 Learning Path
 
@@ -61,7 +73,7 @@ New to Dioxus 0.7? Follow this progressive learning path:
 ### Resources
 - [Dioxus 0.7 Documentation](https://dioxuslabs.com/learn/0.7/)
 - [Dioxus GitHub](https://github.com/DioxusLabs/dioxus)
-- [Development Progress](veld-progress.md)
+- [Development Progress](PROGRESS.md)
 
 ## 🎯 Use Cases
 

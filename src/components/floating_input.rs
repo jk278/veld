@@ -17,29 +17,34 @@ pub fn FloatingInput(
     rsx! {
         if is_visible {
             div {
-                style: "position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px);",
+                class: "fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50",
+                style: "backdrop-filter: blur(4px)",
                 onclick: move |_| on_close.call(()),
 
                 div {
-                    style: "background: {theme.bg_secondary}; border: 1px solid {theme.border}; padding: 24px; border-radius: 8px; width: 600px; max-width: 90vw; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); box-sizing: border-box;",
+                    class: "w-[600px] max-w-[90vw] bg-bg-secondary border border-border rounded-lg p-6 shadow-2xl",
+                    style: "background: {theme.bg_secondary}; border-color: {theme.border}; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); box-sizing: border-box;",
                     onclick: move |e| e.stop_propagation(),
 
                     select {
-                        style: "width: 100%; padding: 8px; background: {theme.bg_surface}; color: {theme.text_primary}; border: 1px solid {theme.border}; border-radius: 4px; margin-bottom: 16px; font-family: monospace;",
+                        class: "w-full p-2 bg-bg-surface text-text-primary border border-border rounded mb-4 font-mono focus:border-primary focus:outline-none",
+                        style: "background: {theme.bg_surface}; color: {theme.text_primary}; border-color: {theme.border}",
                         value: selected_tool(),
                         oninput: move |e| selected_tool.set(e.value()),
 
                         for tool in tools {
                             option {
                                 value: tool,
-                                style: "font-family: monospace;",
+                                class: "font-mono",
+                                style: "font-family: monospace",
                                 {tool.replace("_", " ")}
                             }
                         }
                     }
 
                     input {
-                        style: "width: 100%; padding: 12px; background: {theme.bg_surface}; color: {theme.text_primary}; border: 1px solid {theme.border}; border-radius: 4px; margin-bottom: 16px; font-family: monospace; font-size: 14px; outline: none; box-sizing: border-box;",
+                        class: "w-full p-3 bg-bg-surface text-text-primary border border-border rounded mb-4 font-mono text-sm outline-none transition-all focus:border-primary",
+                        style: "background: {theme.bg_surface}; color: {theme.text_primary}; border-color: {theme.border}; box-sizing: border-box",
                         r#type: "text",
                         placeholder: "Type your prompt...",
                         value: input_text(),
@@ -56,9 +61,10 @@ pub fn FloatingInput(
                         },
                     }
 
-                    div { style: "display: flex; gap: 8px; margin-bottom: 16px;",
+                    div { class: "flex gap-2 mb-4",
                         button {
-                            style: "flex: 1; padding: 10px; background: {theme.bg_surface}; color: {theme.text_secondary}; border: 1px solid {theme.border}; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 14px; box-sizing: border-box;",
+                            class: "flex-1 p-2.5 bg-bg-surface text-text-secondary border border-border rounded cursor-pointer font-mono text-sm transition-all hover:bg-primary hover:text-white hover:border-primary",
+                            style: "background: {theme.bg_surface}; color: {theme.text_secondary}; border-color: {theme.border}; box-sizing: border-box",
                             onclick: move |_| {
                                 if let Ok(mut ctx) = ClipboardContext::new() {
                                     if let Ok(contents) = ctx.get_contents() {
@@ -70,7 +76,8 @@ pub fn FloatingInput(
                             "📋 Paste"
                         }
                         button {
-                            style: "flex: 1; padding: 10px; background: {theme.bg_surface}; color: {theme.text_secondary}; border: 1px solid {theme.border}; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 14px; box-sizing: border-box;",
+                            class: "flex-1 p-2.5 bg-bg-surface text-text-secondary border border-border rounded cursor-pointer font-mono text-sm transition-all hover:bg-primary hover:text-white hover:border-primary",
+                            style: "background: {theme.bg_surface}; color: {theme.text_secondary}; border-color: {theme.border}; box-sizing: border-box",
                             onclick: move |_| {
                                 if !input_text().trim().is_empty() {
                                     if let Ok(mut ctx) = ClipboardContext::new() {
@@ -83,14 +90,16 @@ pub fn FloatingInput(
                         }
                     }
 
-                    div { style: "display: flex; gap: 12px; justify-content: flex-end;",
+                    div { class: "flex gap-3 justify-end",
                         button {
-                            style: "padding: 10px 20px; color: {theme.text_secondary}; background: transparent; border: 1px solid {theme.border}; border-radius: 4px; cursor: pointer; font-family: monospace;",
+                            class: "px-5 py-2.5 text-text-secondary bg-transparent border border-border rounded cursor-pointer font-mono transition-all hover:bg-bg-surface",
+                            style: "color: {theme.text_secondary}; border-color: {theme.border}",
                             onclick: move |_| on_close.call(()),
                             "Cancel"
                         }
                         button {
-                            style: "padding: 10px 20px; background: {theme.accent}; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: 500;",
+                            class: "px-5 py-2.5 bg-primary text-white border-none rounded cursor-pointer font-mono font-medium transition-all hover:opacity-90",
+                            style: "background: {theme.accent}",
                             onclick: move |_| {
                                 if !input_text().trim().is_empty() {
                                     on_submit.call(input_text());

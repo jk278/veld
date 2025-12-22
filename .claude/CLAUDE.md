@@ -314,7 +314,7 @@ async fn get_context() -> Option<String> {
 
 ### 📝 每日开发日志
 
-在 `veld-progress.md` 中记录每日进展：
+在 `PROGRESS.md` 中记录每日进展：
 - 完成的功能
 - 遇到的问题（系统托盘、快捷键、窗口管理）
 - 学习笔记（AI API、平台特定 API）

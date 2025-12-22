@@ -15,87 +15,41 @@ pub fn AppLayout() -> Element {
     rsx! {
         div {
             id: "app-layout",
-            style: "
-                display: flex;
-                flex-direction: column;
-                min-height: 100vh;
-                background: {current_theme.bg_primary};
-                color: {current_theme.text_primary};
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            ",
+            class: "flex flex-col min-h-screen bg-bg-primary text-text-primary font-sans",
+            style: "background: {current_theme.bg_primary}; color: {current_theme.text_primary}",
+
             // Navigation header
             nav {
-                style: "
-                    display: flex;
-                    align-items: center;
-                    padding: 12px 20px;
-                    background: {current_theme.bg_secondary};
-                    border-bottom: 1px solid {current_theme.border};
-                    gap: 16px;
-                ",
+                class: "flex items-center gap-4 px-5 py-3 bg-bg-secondary border-b border-border",
+                style: "background: {current_theme.bg_secondary}; border-bottom-color: {current_theme.border}",
 
                 Link {
                     to: Route::Home,
-                    style: "
-                        color: {current_theme.text_secondary};
-                        text-decoration: none;
-                        padding: 6px 12px;
-                        border-radius: 6px;
-                        transition: all 0.2s;
-                        font-weight: 500;
-                        &:hover {{
-                            color: {current_theme.text_primary};
-                            background: {current_theme.accent};
-                            opacity: 0.1;
-                        }}
-                    ",
+                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200 font-medium",
+                    style: "color: {current_theme.text_secondary}",
                     "Veld"
                 }
 
-                div { style: "flex: 1;" }
+                div { class: "flex-1" }
 
                 Link {
                     to: Route::Settings,
-                    style: "
-                        color: {current_theme.text_secondary};
-                        text-decoration: none;
-                        padding: 6px 12px;
-                        border-radius: 6px;
-                        transition: all 0.2s;
-                        &:hover {{
-                            color: {current_theme.text_primary};
-                            background: {current_theme.accent};
-                            opacity: 0.1;
-                        }}
-                    ",
+                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
+                    style: "color: {current_theme.text_secondary}",
                     "Settings"
                 }
 
                 Link {
                     to: Route::About,
-                    style: "
-                        color: {current_theme.text_secondary};
-                        text-decoration: none;
-                        padding: 6px 12px;
-                        border-radius: 6px;
-                        transition: all 0.2s;
-                        &:hover {{
-                            color: {current_theme.text_primary};
-                            background: {current_theme.accent};
-                            opacity: 0.1;
-                        }}
-                    ",
+                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
+                    style: "color: {current_theme.text_secondary}",
                     "About"
                 }
             }
 
             // Main content area
             main {
-                style: "
-                    flex: 1;
-                    overflow: auto;
-                    padding: 20px;
-                ",
+                class: "flex-1 overflow-auto p-5",
                 Outlet::<Route> {}
             }
         }

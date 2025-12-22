@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@theme {
+  /* 基础颜色 */
+  --color-primary: #1194a3;
+  --color-bg-primary: #050505;
+  --color-bg-secondary: #111827;
+  --color-bg-surface: #1a1a1a;
+  --color-text-primary: #e8eaed;
+  --color-text-secondary: #9aa0a6;
+  --color-text-muted: #5f6368;
+  --color-border: #333333;
+
+  /* 字体 */
+  --font-family-sans: "Inter", system-ui, sans-serif;
+  --font-family-mono: "JetBrains Mono", "Consolas", monospace;
+
+  /* 边框圆角 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* 阴影 */
+  --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* 自定义基础样式 */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-bg-primary text-text-primary;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* 组件层样式 */
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-white border-none rounded-md cursor-pointer font-mono font-medium transition-all hover:opacity-90;
+  }
+
+  .btn-secondary {
+    @apply bg-bg-surface text-text-secondary border border-border rounded-md cursor-pointer font-mono transition-all hover:bg-primary hover:text-white;
+  }
+
+  .card {
+    @apply bg-bg-secondary border border-border rounded-lg;
+  }
+
+  .input-field {
+    @apply w-full p-3 bg-bg-surface text-text-primary border border-border rounded font-mono outline-none transition-all focus:border-primary;
+  }
+}
+
+/* 工具层样式 */
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent;
+  }
+}

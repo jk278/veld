@@ -12,50 +12,27 @@ pub fn ResultViewer(session_id: String) -> Element {
 
     rsx! {
         div {
-            style: "
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                min-height: calc(100vh - 80px);
-                text-align: center;
-            ",
+            class: "flex flex-col items-center justify-center min-h-[calc(100vh-80px)] text-center space-y-6",
 
             h1 {
-                style: "
-                    font-size: 2rem;
-                    font-weight: 300;
-                    margin-bottom: 1rem;
-                    color: {theme().text_primary};
-                ",
+                class: "text-2xl font-light text-text-primary mb-4",
+                style: "color: {theme().text_primary}",
                 "Result Viewer"
             }
 
             p {
-                style: "
-                    font-size: 1rem;
-                    color: {theme().text_secondary};
-                    font-family: monospace;
-                ",
+                class: "text-text-secondary font-mono",
+                style: "color: {theme().text_secondary}",
                 "Session ID: {session_id}"
             }
 
             div {
-                style: "
-                    margin-top: 2rem;
-                    padding: 20px;
-                    background: {theme().bg_surface};
-                    border: 1px solid {theme().border};
-                    border-radius: 8px;
-                    max-width: 800px;
-                ",
+                class: "bg-bg-surface border border-border rounded-lg p-5 max-w-4xl",
+                style: "background: {theme().bg_surface}; border-color: {theme().border}",
                 p {
-                    style: "
-                        margin: 0;
-                        color: {theme().text_secondary};
-                        font-family: monospace;
-                    ",
-                    "Results will appear here..."
+                    class: "text-text-secondary font-mono",
+                    style: "margin: 0; color: {theme().text_secondary}",
+                    "📊 Results will appear here..."
                 }
             }
         }

@@ -12,7 +12,7 @@ use crate::routes::Route;
 pub fn Home() -> Element {
     let (_, theme) = use_theme();
     let mut is_visible = use_signal(|| true);
-    let mut last_result = use_signal(|| Option::<String>::None);
+    let last_result = use_signal(|| Option::<String>::None);
 
     // Handle form submission - use cloned signals to avoid borrow issues
     let mut is_visible_clone = is_visible.clone();
@@ -31,81 +31,36 @@ pub fn Home() -> Element {
 
     rsx! {
         div {
-            style: "
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                min-height: calc(100vh - 80px);
-                text-align: center;
-            ",
+            class: "flex flex-col items-center justify-center min-h-[calc(100vh-80px)] text-center gap-6",
 
             // Welcome message
             h1 {
-                style: "
-                    font-size: 2.5rem;
-                    font-weight: 300;
-                    margin-bottom: 1rem;
-                    color: {theme().text_primary};
-                ",
+                class: "text-4xl font-light text-text-primary mb-4",
+                style: "color: {theme().text_primary}",
                 "Veld AI Toolkit"
             }
 
             p {
-                style: "
-                    font-size: 1.1rem;
-                    color: {theme().text_secondary};
-                    margin-bottom: 2rem;
-                    max-width: 600px;
-                ",
+                class: "text-lg text-text-secondary max-w-2xl leading-relaxed mb-8",
+                style: "color: {theme().text_secondary}",
                 "Press Ctrl+Shift+Space or use the navigation above to access AI tools"
             }
 
             // Quick action buttons
             div {
-                style: "
-                    display: flex;
-                    gap: 12px;
-                    margin-bottom: 2rem;
-                    flex-wrap: wrap;
-                    justify-content: center;
-                ",
+                class: "flex flex-wrap gap-3 justify-center mb-8",
 
                 button {
-                    style: "
-                        padding: 10px 20px;
-                        background: {theme().accent};
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-family: monospace;
-                        transition: all 0.2s;
-                        &:hover {{
-                            opacity: 0.9;
-                        }}
-                    ",
+                    class: "px-5 py-2.5 bg-primary text-white border-none rounded-md cursor-pointer font-mono transition-all hover:opacity-90",
+                    style: "background: {theme().accent}",
                     onclick: move |_| is_visible.set(true),
                     "Open Input Window"
                 }
 
                 Link {
                     to: Route::Settings,
-                    style: "
-                        padding: 10px 20px;
-                        background: {theme().bg_surface};
-                        color: {theme().text_primary};
-                        border: 1px solid {theme().border};
-                        border-radius: 6px;
-                        text-decoration: none;
-                        font-family: monospace;
-                        transition: all 0.2s;
-                        display: inline-block;
-                        &:hover {{
-                            background: {theme().accent};
-                            color: white;
-                        }}
-                    ",
+                    class: "px-5 py-2.5 bg-bg-surface text-text-primary border border-border rounded-md text-decoration-none font-mono transition-all hover:bg-primary hover:text-white inline-block",
+                    style: "background: {theme().bg_surface}; color: {theme().text_primary}; border-color: {theme().border}",
                     "Settings"
                 }
             }
@@ -113,25 +68,16 @@ pub fn Home() -> Element {
             // Show last result if available
             if let Some(result) = last_result() {
                 div {
-                    style: "
-                        background: {theme().bg_surface};
-                        border: 1px solid {theme().border};
-                        border-radius: 8px;
-                        padding: 20px;
-                        max-width: 800px;
-                        margin-top: 2rem;
-                    ",
+                    class: "bg-bg-surface border border-border rounded-lg p-5 max-w-4xl mt-8",
+                    style: "background: {theme().bg_surface}; border-color: {theme().border}",
                     h3 {
-                        style: "margin: 0 0 12px 0; color: {theme().accent};",
+                        class: "text-primary font-mono text-sm mb-3 uppercase tracking-wide",
+                        style: "margin: 0 0 12px 0; color: {theme().accent}",
                         "Last Result:"
                     }
                     p {
-                        style: "
-                            margin: 0;
-                            color: {theme().text_secondary};
-                            font-family: monospace;
-                            white-space: pre-wrap;
-                        ",
+                        class: "text-text-secondary font-mono whitespace-pre-wrap",
+                        style: "margin: 0; color: {theme().text_secondary}",
                         {result}
                     }
                 }

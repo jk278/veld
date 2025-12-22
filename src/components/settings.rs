@@ -17,47 +17,35 @@ pub fn Settings() -> Element {
 
     rsx! {
         div {
-            style: "
-                max-width: 800px;
-                margin: 0 auto;
-            ",
+            class: "max-w-4xl mx-auto space-y-6",
 
             h1 {
-                style: "
-                    font-size: 2rem;
-                    font-weight: 300;
-                    margin-bottom: 2rem;
-                    color: {current_theme.text_primary};
-                ",
+                class: "text-3xl font-light text-text-primary mb-8",
+                style: "color: {current_theme.text_primary}",
                 "Settings"
             }
 
             // Theme selector
             section {
-                style: "
-                    background: {current_theme.bg_surface};
-                    border: 1px solid {current_theme.border};
-                    border-radius: 8px;
-                    padding: 24px;
-                    margin-bottom: 24px;
-                ",
+                class: "bg-bg-surface border border-border rounded-lg p-6 space-y-4",
+                style: "background: {current_theme.bg_surface}; border-color: {current_theme.border}",
 
                 h2 {
-                    style: "
-                        font-size: 1.3rem;
-                        margin: 0 0 16px 0;
-                        color: {current_theme.text_primary};
-                    ",
-                    "Appearance"
+                    class: "text-xl text-text-primary mb-4",
+                    style: "color: {current_theme.text_primary}",
+                    "🎨 Appearance"
                 }
 
-                div { style: "display: flex; gap: 8px; align-items: center;",
-                    label { style: "color: {current_theme.text_secondary}; font-size: 14px; margin-right: 8px;",
+                div { class: "flex flex-wrap gap-2 items-center",
+                    label {
+                        class: "text-text-secondary text-sm font-medium mr-2",
+                        style: "color: {current_theme.text_secondary}",
                         "Theme:"
                     }
                     button {
+                        class: "px-3 py-1.5 rounded font-mono text-sm transition-all",
                         style: format!(
-                            "padding: 6px 12px; border-radius: 4px; border: 1px solid {}; background: {}; color: {}; font-family: monospace; cursor: pointer;",
+                            "border: 1px solid {}; background: {}; color: {}; cursor: pointer;",
                             current_theme.border,
                             if theme_mode() == ThemeMode::Light { current_theme.accent } else { current_theme.bg_surface },
                             if theme_mode() == ThemeMode::Light { "white" } else { current_theme.text_primary }
@@ -66,8 +54,9 @@ pub fn Settings() -> Element {
                         "☀️ Light"
                     }
                     button {
+                        class: "px-3 py-1.5 rounded font-mono text-sm transition-all",
                         style: format!(
-                            "padding: 6px 12px; border-radius: 4px; border: 1px solid {}; background: {}; color: {}; font-family: monospace; cursor: pointer;",
+                            "border: 1px solid {}; background: {}; color: {}; cursor: pointer;",
                             current_theme.border,
                             if theme_mode() == ThemeMode::Dark { current_theme.accent } else { current_theme.bg_surface },
                             if theme_mode() == ThemeMode::Dark { "white" } else { current_theme.text_primary }
@@ -76,8 +65,9 @@ pub fn Settings() -> Element {
                         "🌙 Dark"
                     }
                     button {
+                        class: "px-3 py-1.5 rounded font-mono text-sm transition-all",
                         style: format!(
-                            "padding: 6px 12px; border-radius: 4px; border: 1px solid {}; background: {}; color: {}; font-family: monospace; cursor: pointer;",
+                            "border: 1px solid {}; background: {}; color: {}; cursor: pointer;",
                             current_theme.border,
                             if theme_mode() == ThemeMode::System { current_theme.accent } else { current_theme.bg_surface },
                             if theme_mode() == ThemeMode::System { "white" } else { current_theme.text_primary }
@@ -90,44 +80,25 @@ pub fn Settings() -> Element {
 
             // AI Configuration section
             section {
-                style: "
-                    background: {current_theme.bg_surface};
-                    border: 1px solid {current_theme.border};
-                    border-radius: 8px;
-                    padding: 24px;
-                    margin-bottom: 24px;
-                ",
+                class: "bg-bg-surface border border-border rounded-lg p-6 space-y-4",
+                style: "background: {current_theme.bg_surface}; border-color: {current_theme.border}",
 
                 h2 {
-                    style: "
-                        font-size: 1.3rem;
-                        margin: 0 0 16px 0;
-                        color: {current_theme.text_primary};
-                    ",
-                    "AI Configuration"
+                    class: "text-xl text-text-primary mb-4",
+                    style: "color: {current_theme.text_primary}",
+                    "🤖 AI Configuration"
                 }
 
                 div {
-                    style: "margin-bottom: 20px;",
+                    class: "space-y-2",
                     label {
-                        style: "
-                            display: block;
-                            margin-bottom: 8px;
-                            color: {current_theme.text_secondary};
-                            font-size: 0.9rem;
-                        ",
+                        class: "block text-text-secondary text-sm font-medium",
+                        style: "color: {current_theme.text_secondary}",
                         "API Provider"
                     }
                     select {
-                        style: "
-                            width: 100%;
-                            padding: 10px;
-                            background: {current_theme.bg_surface};
-                            color: {current_theme.text_primary};
-                            border: 1px solid {current_theme.border};
-                            border-radius: 6px;
-                            font-family: monospace;
-                        ",
+                        class: "w-full p-2.5 bg-bg-surface text-text-primary border border-border rounded-md font-mono focus:border-primary focus:outline-none",
+                        style: "background: {current_theme.bg_surface}; color: {current_theme.text_primary}; border-color: {current_theme.border}",
                         value: selected_model(),
                         oninput: move |e| selected_model.set(e.value()),
 
@@ -138,27 +109,15 @@ pub fn Settings() -> Element {
                 }
 
                 div {
-                    style: "margin-bottom: 20px;",
+                    class: "space-y-2",
                     label {
-                        style: "
-                            display: block;
-                            margin-bottom: 8px;
-                            color: {current_theme.text_secondary};
-                            font-size: 0.9rem;
-                        ",
+                        class: "block text-text-secondary text-sm font-medium",
+                        style: "color: {current_theme.text_secondary}",
                         "API Key"
                     }
                     input {
-                        style: "
-                            width: 100%;
-                            padding: 10px;
-                            background: {current_theme.bg_surface};
-                            color: {current_theme.text_primary};
-                            border: 1px solid {current_theme.border};
-                            border-radius: 6px;
-                            font-family: monospace;
-                            box-sizing: border-box;
-                        ",
+                        class: "w-full p-2.5 bg-bg-surface text-text-primary border border-border rounded-md font-mono outline-none transition-all focus:border-primary",
+                        style: "background: {current_theme.bg_surface}; color: {current_theme.text_primary}; border-color: {current_theme.border}; box-sizing: border-box",
                         r#type: "password",
                         placeholder: "Enter your API key...",
                         value: api_key(),
@@ -169,56 +128,40 @@ pub fn Settings() -> Element {
 
             // Keyboard Shortcuts section
             section {
-                style: "
-                    background: {current_theme.bg_surface};
-                    border: 1px solid {current_theme.border};
-                    border-radius: 8px;
-                    padding: 24px;
-                    margin-bottom: 24px;
-                ",
+                class: "bg-bg-surface border border-border rounded-lg p-6 space-y-4",
+                style: "background: {current_theme.bg_surface}; border-color: {current_theme.border}",
 
                 h2 {
-                    style: "
-                        font-size: 1.3rem;
-                        margin: 0 0 16px 0;
-                        color: {current_theme.text_primary};
-                    ",
-                    "Keyboard Shortcuts"
+                    class: "text-xl text-text-primary mb-4",
+                    style: "color: {current_theme.text_primary}",
+                    "⌨️ Keyboard Shortcuts"
                 }
 
                 div {
-                    style: "display: flex; flex-direction: column; gap: 12px;",
+                    class: "space-y-3",
                     div {
-                        style: "display: flex; justify-content: space-between; align-items: center;",
+                        class: "flex justify-between items-center py-2 border-b border-border last:border-b-0",
                         span {
-                            style: "color: {current_theme.text_secondary};",
+                            class: "text-text-secondary",
+                            style: "color: {current_theme.text_secondary}",
                             "Show Floating Input"
                         }
                         code {
-                            style: "
-                                background: {current_theme.bg_primary};
-                                padding: 6px 12px;
-                                border-radius: 4px;
-                                color: {current_theme.accent};
-                                font-family: monospace;
-                            ",
+                            class: "px-3 py-1 bg-bg-primary text-primary rounded font-mono text-sm",
+                            style: "background: {current_theme.bg_primary}; color: {current_theme.accent}",
                             "Ctrl+Shift+Space"
                         }
                     }
                     div {
-                        style: "display: flex; justify-content: space-between; align-items: center;",
+                        class: "flex justify-between items-center py-2 border-b border-border last:border-b-0",
                         span {
-                            style: "color: {current_theme.text_secondary};",
+                            class: "text-text-secondary",
+                            style: "color: {current_theme.text_secondary}",
                             "Quick Summarize"
                         }
                         code {
-                            style: "
-                                background: {current_theme.bg_primary};
-                                padding: 6px 12px;
-                                border-radius: 4px;
-                                color: {current_theme.accent};
-                                font-family: monospace;
-                            ",
+                            class: "px-3 py-1 bg-bg-primary text-primary rounded font-mono text-sm",
+                            style: "background: {current_theme.bg_primary}; color: {current_theme.accent}",
                             "Ctrl+Shift+S"
                         }
                     }
@@ -227,36 +170,24 @@ pub fn Settings() -> Element {
 
             // Application Preferences section
             section {
-                style: "
-                    background: {current_theme.bg_surface};
-                    border: 1px solid {current_theme.border};
-                    border-radius: 8px;
-                    padding: 24px;
-                    margin-bottom: 24px;
-                ",
+                class: "bg-bg-surface border border-border rounded-lg p-6 space-y-4",
+                style: "background: {current_theme.bg_surface}; border-color: {current_theme.border}",
 
                 h2 {
-                    style: "
-                        font-size: 1.3rem;
-                        margin: 0 0 16px 0;
-                        color: {current_theme.text_primary};
-                    ",
-                    "Application Preferences"
+                    class: "text-xl text-text-primary mb-4",
+                    style: "color: {current_theme.text_primary}",
+                    "⚙️ Application Preferences"
                 }
 
                 label {
-                    style: "
-                        display: flex;
-                        align-items: center;
-                        gap: 12px;
-                        cursor: pointer;
-                        color: {current_theme.text_secondary};
-                    ",
+                    class: "flex items-center gap-3 cursor-pointer text-text-secondary hover:text-text-primary transition-colors",
+                    style: "color: {current_theme.text_secondary}",
 
                     input {
                         r#type: "checkbox",
                         checked: auto_start(),
                         oninput: move |e| auto_start.set(e.checked()),
+                        class: "w-4 h-4 text-primary bg-bg-surface border-border rounded focus:ring-primary focus:ring-2",
                     }
 
                     span {
@@ -267,27 +198,15 @@ pub fn Settings() -> Element {
 
             // Save button
             div {
-                style: "display: flex; justify-content: flex-end; gap: 12px;",
+                class: "flex justify-end gap-3 pt-4",
                 button {
-                    style: "
-                        padding: 10px 24px;
-                        background: {current_theme.accent};
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-family: monospace;
-                        font-weight: 500;
-                        transition: all 0.2s;
-                        &:hover {{
-                            opacity: 0.9;
-                        }}
-                    ",
+                    class: "px-6 py-2.5 bg-primary text-white border-none rounded-md cursor-pointer font-mono font-medium transition-all hover:opacity-90",
+                    style: "background: {current_theme.accent}",
                     onclick: move |_| {
                         // TODO: Save settings to config file
                         println!("Settings saved!");
                     },
-                    "Save Settings"
+                    "💾 Save Settings"
                 }
             }
         }

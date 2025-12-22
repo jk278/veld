@@ -3,11 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "tailwind": "pnpm tailwindcss -i input.css -o assets/tailwind.css -w",
+    "tailwind:build": "pnpm tailwindcss -i input.css -o assets/tailwind.css --minify",
+    "build": "pnpm tailwind:build && dx build"
+  },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.1.18",
     "@types/node": "^22.15.30",
     "@types/react": "^19.2.7",
+    "autoprefixer": "^10.4.23",
     "ink": "^6.5.1",
+    "postcss": "^8.5.6",
     "react": "^19.2.3",
+    "tailwindcss": "^4.1.18",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }

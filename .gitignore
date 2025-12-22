@@ -33,3 +33,6 @@ CLAUDE.local.md
 
 # Dependencies
 node_modules
+
+# TailwindCSS generated files
+assets/tailwind.css

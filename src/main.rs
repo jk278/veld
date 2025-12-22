@@ -12,7 +12,7 @@ use crate::routes::Route;
 use std::sync::{Arc, Mutex, OnceLock};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-const GLOBAL_STYLES: Asset = asset!("/assets/styles.css");
+const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 static SHOW_FLOATING_INPUT: OnceLock<Arc<Mutex<bool>>> = OnceLock::new();
 
 fn main() {
@@ -96,7 +96,9 @@ fn App() -> Element {
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
-        document::Link { rel: "stylesheet", href: GLOBAL_STYLES }
+        document::Stylesheet { href: TAILWIND_CSS }
+        // 旧的样式表已不再需要，TailwindCSS已包含所有样式
+        // document::Link { rel: "stylesheet", href: GLOBAL_STYLES }
 
         // Router with layout attribute automatically wraps all routes
         Router::<Route> {}

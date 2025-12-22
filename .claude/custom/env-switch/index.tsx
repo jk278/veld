@@ -106,7 +106,6 @@ const EnvSwitcher = () => {
       const envNames = Object.keys(cacheData);
       handleSelect(envNames[selectedIndex]);
     } else if (key.escape) {
-      console.log("\n操作已取消");
       process.exit(0);
     } else if (input === "u" || input === "U") {
       setShowUsage((prev) => !prev);

@@ -5,12 +5,14 @@ use dioxus_desktop::{
     use_tray_menu_event_handler,
     trayicon::TrayIconEvent,
 };
+use crate::components::floating_input::FloatingInput;
 use crate::shortcuts::ShortcutManager;
 use crate::theme::{use_theme, ThemeMode, ThemeSelector};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-static SHOW_FLOATING_INPUT: once_cell::sync::OnceCell<Arc<Mutex<bool>>> = once_cell::sync::OnceCell::new();
+const GLOBAL_STYLES: Asset = asset!("/assets/styles.css");
+static SHOW_FLOATING_INPUT: OnceLock<Arc<Mutex<bool>>> = OnceLock::new();
 
 fn main() {
     SHOW_FLOATING_INPUT.set(Arc::new(Mutex::new(false))).unwrap();
@@ -89,6 +91,7 @@ fn App() -> Element {
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
+        document::Link { rel: "stylesheet", href: GLOBAL_STYLES }
 
         div {
             style: "font-family: Inter, system-ui, sans-serif; padding: 40px; min-height: 100vh; background: {current_theme.bg_primary}; color: {current_theme.text_secondary};",
@@ -146,40 +149,14 @@ fn App() -> Element {
         }
 
         if show_floating_input() {
-            div {
-                style: "position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px);",
-                onclick: move |_| show_floating_input.set(false),
-
-                div {
-                    style: "background: {current_theme.bg_secondary}; border: 1px solid {current_theme.border}; padding: 24px; border-radius: 8px; width: 600px; max-width: 90vw; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);",
-                    onclick: move |e| e.stop_propagation(),
-
-                    select {
-                        style: "width: 100%; padding: 8px; background: {current_theme.bg_surface}; color: {current_theme.text_primary}; border: 1px solid {current_theme.border}; border-radius: 4px; margin-bottom: 16px; font-family: monospace;",
-                        option { value: "explain", "Explain code" }
-                        option { value: "summarize", "Summarize text" }
-                        option { value: "translate", "Translate" }
-                        option { value: "code_gen", "Generate code" }
-                        option { value: "refactor", "Refactor code" }
-                    }
-
-                    input {
-                        style: "width: 100%; padding: 12px; background: {current_theme.bg_surface}; color: {current_theme.text_primary}; border: 1px solid {current_theme.border}; border-radius: 4px; margin-bottom: 16px; font-family: monospace; font-size: 14px; outline: none;",
-                        placeholder: "Type your prompt..."
-                    }
-
-                    div { style: "display: flex; gap: 12px; justify-content: flex-end;",
-                        button {
-                            style: "padding: 10px 20px; color: {current_theme.text_secondary}; background: transparent; border: 1px solid {current_theme.border}; border-radius: 4px; cursor: pointer; font-family: monospace;",
-                            onclick: move |_| show_floating_input.set(false),
-                            "Cancel"
-                        }
-                        button {
-                            style: "padding: 10px 20px; background: {current_theme.accent}; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: 500;",
-                            "Send"
-                        }
-                    }
-                }
+            FloatingInput {
+                is_visible: show_floating_input(),
+                on_close: Callback::new(move |_| show_floating_input.set(false)),
+                on_submit: Callback::new(|text: String| {
+                    println!("Tool selected and submitted: {}", text);
+                    // TODO: Implement AI tool handling
+                }),
+                theme: current_theme,
             }
         }
     }

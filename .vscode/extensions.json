@@ -3,7 +3,6 @@
     // DEV
     "anthropic.claude-code",
     // language
-    "rust-lang.rust-analyzer",
     "tamasfe.even-better-toml",
     // UI
     "pkief.material-icon-theme",

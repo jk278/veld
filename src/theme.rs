@@ -46,19 +46,29 @@ pub const DARK_THEME: Theme = Theme {
 };
 
 pub fn use_theme() -> (Signal<ThemeMode>, Signal<Theme>) {
-    let theme_mode = use_signal(|| ThemeMode::Dark);
+    let theme_mode = use_signal(|| ThemeMode::System);
     let mut theme = use_signal(|| DARK_THEME);
     let mut system_theme_signal = use_signal(|| SystemTheme::Dark);
+
+    // Initialize system theme from window on first run
+    use_effect(move || {
+        // Get initial window theme
+        let window = dioxus_desktop::window();
+        let initial_theme = window.theme();
+        system_theme_signal.set(initial_theme);
+    });
 
     // Listen for system theme changes
     use_effect(move || {
         dioxus_desktop::use_wry_event_handler(move |event, _| {
-            if let WryEvent::WindowEvent {
-                event: WindowEvent::ThemeChanged(new_theme),
-                ..
-            } = event
-            {
-                system_theme_signal.set(*new_theme);
+            match event {
+                WryEvent::WindowEvent {
+                    event: WindowEvent::ThemeChanged(new_theme),
+                    ..
+                } => {
+                    system_theme_signal.set(*new_theme);
+                }
+                _ => {}
             }
         });
     });

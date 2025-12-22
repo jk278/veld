@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 # Dioxus Core
-dioxus = { version = "0.7.1", features = ["signals"] }
+dioxus = { version = "0.7.2", features = ["router"] }
 # Dioxus Desktop includes these built-in dependencies (DO NOT add separately):
 # - tao v0.34.5: Window management (winit fork)
 # - wry v0.53.5: Web rendering engine
@@ -16,7 +16,7 @@ dioxus = { version = "0.7.1", features = ["signals"] }
 # - global-hotkey v0.7.0: Global keyboard shortcuts
 # - muda v0.17.1: Menu bar support
 # - tokio v1.48+: Async runtime
-dioxus-desktop = "0.7.1"
+dioxus-desktop = "0.7.2"
 
 # Serialization (JSON configuration files)
 serde = { version = "1.0", features = ["derive"] }
@@ -37,7 +37,7 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 notify-rust = "4.5"
 
 # File system monitoring (watch config changes)
-notify = "6.1"
+notify = "8.2"
 
 # Note: Replaced once_cell with std::sync::OnceLock (Rust 1.70+)
 # We've implemented our own theme system with pure Dioxus instead
@@ -46,10 +46,10 @@ notify = "6.1"
 
 [features]
 # Platform targets (enable one or more)
-default = ["desktop"]  # Build for desktop by default
-web = ["dioxus/web"]   # WebAssembly target
-desktop = ["dioxus/desktop"]  # Native desktop (Windows/macOS/Linux)
-mobile = ["dioxus/mobile"]    # Mobile target (iOS/Android)
+default = ["desktop"]        # Build for desktop by default
+web = ["dioxus/web"]         # WebAssembly target
+desktop = ["dioxus/desktop"] # Native desktop (Windows/macOS/Linux)
+mobile = ["dioxus/mobile"]   # Mobile target (iOS/Android)
 
 [dev-dependencies]
 # Async runtime testing utilities (uses tokio from dioxus-desktop)

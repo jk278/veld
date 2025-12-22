@@ -123,6 +123,7 @@ pub mod tray;
 pub mod shortcuts;
 pub mod window_manager;
 pub mod theme;
+pub mod config;
 pub mod routes;
 
 #[cfg(test)]

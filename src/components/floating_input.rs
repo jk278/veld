@@ -14,21 +14,32 @@ pub fn FloatingInput(
 
     let tools = vec!["explain", "summarize", "translate", "code_gen", "refactor"];
 
-    rsx! {
-        if is_visible {
-            div {
-                class: "fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50",
-                style: "backdrop-filter: blur(4px)",
-                onclick: move |_| on_close.call(()),
+    // Use CSS classes for visibility control (no conditional rendering)
+    // This prevents component remounting and improves activation speed
+    let overlay_class = if is_visible {
+        "floating-overlay visible"
+    } else {
+        "floating-overlay"
+    };
 
-                div {
-                    class: "w-[600px] max-w-[90vw] bg-bg-secondary border border-border rounded-lg p-6 shadow-2xl",
-                    style: "background: {theme.bg_secondary}; border-color: {theme.border}; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); box-sizing: border-box;",
-                    onclick: move |e| e.stop_propagation(),
+    let content_class = if is_visible {
+        "floating-content visible"
+    } else {
+        "floating-content"
+    };
+
+    rsx! {
+        div {
+            class: "{overlay_class}",
+            onclick: move |_| on_close.call(()),
+
+            div {
+                class: "{content_class}",
+                style: "border-color: {theme.border}; background: {theme.bg_secondary}",
+                onclick: move |e| e.stop_propagation(),
 
                     select {
-                        class: "w-full p-2 bg-bg-surface text-text-primary border border-border rounded mb-4 font-mono focus:border-primary focus:outline-none",
-                        style: "background: {theme.bg_surface}; color: {theme.text_primary}; border-color: {theme.border}",
+                        class: "input-field mb-4",
                         value: selected_tool(),
                         oninput: move |e| selected_tool.set(e.value()),
 
@@ -43,8 +54,7 @@ pub fn FloatingInput(
                     }
 
                     input {
-                        class: "w-full p-3 bg-bg-surface text-text-primary border border-border rounded mb-4 font-mono text-sm outline-none transition-all focus:border-primary",
-                        style: "background: {theme.bg_surface}; color: {theme.text_primary}; border-color: {theme.border}; box-sizing: border-box",
+                        class: "input-field mb-4",
                         r#type: "text",
                         placeholder: "Type your prompt...",
                         value: input_text(),
@@ -63,8 +73,7 @@ pub fn FloatingInput(
 
                     div { class: "flex gap-2 mb-4",
                         button {
-                            class: "flex-1 p-2.5 bg-bg-surface text-text-secondary border border-border rounded cursor-pointer font-mono text-sm transition-all hover:bg-primary hover:text-white hover:border-primary",
-                            style: "background: {theme.bg_surface}; color: {theme.text_secondary}; border-color: {theme.border}; box-sizing: border-box",
+                            class: "btn-secondary flex-1 p-2.5 text-sm",
                             onclick: move |_| {
                                 if let Ok(mut ctx) = ClipboardContext::new() {
                                     if let Ok(contents) = ctx.get_contents() {
@@ -76,8 +85,7 @@ pub fn FloatingInput(
                             "📋 Paste"
                         }
                         button {
-                            class: "flex-1 p-2.5 bg-bg-surface text-text-secondary border border-border rounded cursor-pointer font-mono text-sm transition-all hover:bg-primary hover:text-white hover:border-primary",
-                            style: "background: {theme.bg_surface}; color: {theme.text_secondary}; border-color: {theme.border}; box-sizing: border-box",
+                            class: "btn-secondary flex-1 p-2.5 text-sm",
                             onclick: move |_| {
                                 if !input_text().trim().is_empty() {
                                     if let Ok(mut ctx) = ClipboardContext::new() {
@@ -92,14 +100,12 @@ pub fn FloatingInput(
 
                     div { class: "flex gap-3 justify-end",
                         button {
-                            class: "px-5 py-2.5 text-text-secondary bg-transparent border border-border rounded cursor-pointer font-mono transition-all hover:bg-bg-surface",
-                            style: "color: {theme.text_secondary}; border-color: {theme.border}",
+                            class: "btn-cancel",
                             onclick: move |_| on_close.call(()),
                             "Cancel"
                         }
                         button {
-                            class: "px-5 py-2.5 bg-primary text-white border-none rounded cursor-pointer font-mono font-medium transition-all hover:opacity-90",
-                            style: "background: {theme.accent}",
+                            class: "btn-primary",
                             onclick: move |_| {
                                 if !input_text().trim().is_empty() {
                                     on_submit.call(input_text());
@@ -111,6 +117,5 @@ pub fn FloatingInput(
                     }
                 }
             }
-        }
     }
 }

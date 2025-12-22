@@ -2,7 +2,8 @@
 //! 设置页面组件
 
 use dioxus::prelude::*;
-use crate::theme::{use_theme, ThemeMode};
+use crate::theme::use_theme;
+use crate::config::ThemeMode;
 
 /// Settings page
 /// 应用设置页面

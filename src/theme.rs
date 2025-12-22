@@ -3,13 +3,8 @@ use dioxus_desktop::tao::{
     event::{Event as WryEvent, WindowEvent},
     window::Theme as SystemTheme,
 };
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum ThemeMode {
-    Light,
-    Dark,
-    System,
-}
+use crate::config::{AppConfig, ThemeMode};
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct Theme {
@@ -55,18 +50,36 @@ impl Default for Theme {
 pub struct ThemeContext {
     pub theme_mode: Signal<ThemeMode>,
     pub theme: Signal<Theme>,
+    pub config: Arc<Mutex<AppConfig>>,
 }
 
 /// Initialize theme system and provide context - call this in root component
 pub fn init_theme() -> ThemeContext {
-    let theme_mode = use_signal(|| ThemeMode::System);
+    // Load saved config
+    let config = match AppConfig::load() {
+        Ok(config) => {
+            println!("[Theme] Configuration loaded successfully");
+            config
+        }
+        Err(e) => {
+            eprintln!("[Theme] Failed to load config: {}, using defaults", e);
+            AppConfig::default()
+        }
+    };
+
+    let config = Arc::new(Mutex::new(config));
+    let initial_mode = config.lock().unwrap().theme.mode;
+
+    let theme_mode = use_signal(move || initial_mode);
     let mut theme = use_signal(|| DARK_THEME);
     let mut system_theme_signal = use_signal(|| SystemTheme::Dark);
+    let config_clone = config.clone();
 
     // Initialize system theme from window on first run
     use_effect(move || {
         let window = dioxus_desktop::window();
         let initial_theme = window.theme();
+        println!("[Theme] Initial system theme detected: {:?}", initial_theme);
         system_theme_signal.set(initial_theme);
     });
 
@@ -78,6 +91,7 @@ pub fn init_theme() -> ThemeContext {
                     event: WindowEvent::ThemeChanged(new_theme),
                     ..
                 } => {
+                    println!("[Theme] System theme changed to: {:?}", new_theme);
                     system_theme_signal.set(*new_theme);
                 }
                 _ => {}
@@ -102,9 +116,23 @@ pub fn init_theme() -> ThemeContext {
         theme.set(current_theme);
     });
 
+    // Auto-save theme mode when it changes (via config module)
+    use_effect(move || {
+        let mode = theme_mode();
+        let config = config_clone.clone();
+        // Use config module's update method which handles saving in background
+        std::thread::spawn(move || {
+            if let Ok(mut config) = config.lock() {
+                config.update_theme(mode);
+                println!("[Theme] Theme mode saved: {:?}", mode);
+            }
+        });
+    });
+
     ThemeContext {
         theme_mode,
         theme,
+        config,
     }
 }
 

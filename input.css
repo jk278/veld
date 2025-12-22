@@ -58,4 +58,150 @@
   .text-gradient {
     @apply bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent;
   }
+
+  /* 浮动输入窗口动画 */
+  .floating-overlay {
+    @apply fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease-out;
+  }
+
+  .floating-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .floating-content {
+    @apply w-[600px] max-w-[90vw] bg-bg-secondary border border-border rounded-lg p-6 shadow-2xl;
+    background: var(--color-bg-secondary);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-8px) scale(0.98);
+    opacity: 0;
+    transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .floating-content.visible {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+
+  /* 增强的输入框动画 */
+  .input-field {
+    @apply w-full p-3 bg-bg-surface text-text-primary border border-border rounded font-mono outline-none;
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    border-color: var(--color-border);
+    transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .input-field:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(17, 148, 163, 0.1);
+    transform: translateY(-1px);
+  }
+
+  /* 增强的选择框动画 */
+  select.input-field {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%239' d='M2 0Laa0a60 2h4zm0 5L0 3h4z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 12px;
+    padding-right: 40px;
+  }
+
+  select.input-field:focus {
+    background-image: url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%231194a3' d='M2 0L0 2h4zm0 5L0 3h4z'/></svg>");
+  }
+
+  /* 增强的按钮动画 */
+  .btn-secondary {
+    @apply bg-bg-surface text-text-secondary border border-border rounded-md cursor-pointer font-mono;
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+    border-color: var(--color-border);
+    transition: all 120ms cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-secondary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--color-primary);
+    opacity: 0;
+    transition: opacity 120ms ease;
+    z-index: 0;
+  }
+
+  .btn-secondary:hover::before {
+    opacity: 0.1;
+  }
+
+  .btn-secondary:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(17, 148, 163, 0.15);
+  }
+
+  .btn-secondary > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 取消按钮特殊效果 */
+  .btn-cancel {
+    @apply px-5 py-2.5 text-text-secondary bg-transparent border border-border rounded cursor-pointer font-mono;
+    color: var(--color-text-secondary);
+    border-color: var(--color-border);
+    transition: all 120ms ease;
+  }
+
+  .btn-cancel:hover {
+    background: var(--color-bg-surface);
+    transform: translateY(-1px);
+  }
+
+  /* 发送按钮动画 */
+  .btn-primary {
+    @apply px-5 py-2.5 bg-primary text-white border-none rounded cursor-pointer font-mono font-medium;
+    background: var(--color-primary);
+    transition: all 120ms cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 500ms ease;
+  }
+
+  .btn-primary:hover::after {
+    left: 100%;
+  }
+
+  .btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(17, 148, 163, 0.3);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(17, 148, 163, 0.2);
+  }
 }

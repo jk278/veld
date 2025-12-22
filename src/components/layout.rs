@@ -18,9 +18,9 @@ pub fn AppLayout() -> Element {
             class: "flex flex-col min-h-screen bg-bg-primary text-text-primary font-sans",
             style: "background: {current_theme.bg_primary}; color: {current_theme.text_primary}",
 
-            // Navigation header
+            // Navigation header (sticky at top)
             nav {
-                class: "flex items-center gap-4 px-5 py-3 bg-bg-secondary border-b border-border",
+                class: "flex items-center gap-4 px-5 py-3 bg-bg-secondary border-b border-border sticky top-0 z-10",
                 style: "background: {current_theme.bg_secondary}; border-bottom-color: {current_theme.border}",
 
                 Link {
@@ -47,9 +47,11 @@ pub fn AppLayout() -> Element {
                 }
             }
 
-            // Main content area
-            main {
-                class: "flex-1 overflow-auto p-5",
+            // Main content area (allow scrolling within content only)
+            div {
+                class: "flex-1 overflow-auto",
+                style: "padding: 1.25rem",  // p-5 equivalent
+
                 Outlet::<Route> {}
             }
         }

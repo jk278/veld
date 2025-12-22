@@ -31,7 +31,7 @@ pub fn Home() -> Element {
 
     rsx! {
         div {
-            class: "flex flex-col items-center justify-center min-h-[calc(100vh-80px)] text-center gap-6",
+            class: "flex flex-col items-center justify-center text-center gap-6 py-8",
 
             // Welcome message
             h1 {

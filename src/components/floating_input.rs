@@ -1,11 +1,5 @@
-//! Floating input window component
-//! Provides a quick-access input interface for AI tools
-
 use dioxus::prelude::*;
 
-const FLOATING_INPUT_CSS: Asset = asset!("/assets/floating_input.css");
-
-/// Floating input component
 #[component]
 pub fn FloatingInput(
     is_visible: bool,
@@ -15,59 +9,58 @@ pub fn FloatingInput(
     let mut input_text = use_signal(String::new);
     let mut selected_tool = use_signal(|| "explain".to_string());
 
-    // Available tools
     let tools = vec!["explain", "summarize", "translate", "code_gen", "refactor"];
 
     rsx! {
-        document::Link { rel: "stylesheet", href: FLOATING_INPUT_CSS }
         if is_visible {
             div {
-                id: "floating-input-overlay",
-                onclick: move |_| {
-                    // Close if clicking outside the input box
-                    on_close.call(());
-                },
+                style: "position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px);",
+                onclick: move |_| on_close.call(()),
+
                 div {
-                    id: "floating-input-container",
+                    style: "background: #111; border: 1px solid #333; padding: 24px; border-radius: 8px; width: 600px; max-width: 90vw; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);",
                     onclick: move |e| e.stop_propagation(),
-                    div {
-                        id: "tool-selector",
-                        select {
-                            value: selected_tool(),
-                            oninput: move |e| {
-                                selected_tool.set(e.value());
-                            },
-                            for tool in tools {
-                                option {
-                                    value: tool,
-                                    {tool}
-                                }
+
+                    select {
+                        style: "width: 100%; padding: 8px; background: #1a1a1a; color: #e8eaed; border: 1px solid #333; border-radius: 4px; margin-bottom: 16px; font-family: monospace;",
+                        value: selected_tool(),
+                        oninput: move |e| selected_tool.set(e.value()),
+
+                        for tool in tools {
+                            option {
+                                value: tool,
+                                style: "font-family: monospace;",
+                                {tool.replace("_", " ")}
                             }
                         }
-                    },
-                    div {
-                        id: "input-wrapper",
-                        input {
-                            id: "floating-input",
-                            r#type: "text",
-                            placeholder: "Type your prompt or press / for help...",
-                            value: input_text(),
-                            oninput: move |e| {
-                                input_text.set(e.value());
-                            },
-                            onkeydown: move |e| {
-                                if e.key() == Key::Escape {
-                                    on_close.call(());
-                                } else if e.key() == Key::Enter {
-                                    if !input_text().trim().is_empty() {
-                                        on_submit.call(input_text());
-                                        input_text.set(String::new());
-                                    }
+                    }
+
+                    input {
+                        style: "width: 100%; padding: 12px; background: #1a1a1a; color: #e8eaed; border: 1px solid #333; border-radius: 4px; margin-bottom: 16px; font-family: monospace; font-size: 14px; outline: none;",
+                        r#type: "text",
+                        placeholder: "Type your prompt or press / for help...",
+                        value: input_text(),
+                        oninput: move |e| input_text.set(e.value()),
+                        onkeydown: move |e| {
+                            if e.key() == Key::Escape {
+                                on_close.call(());
+                            } else if e.key() == Key::Enter {
+                                if !input_text().trim().is_empty() {
+                                    on_submit.call(input_text());
+                                    input_text.set(String::new());
                                 }
-                            },
+                            }
+                        },
+                    }
+
+                    div { style: "display: flex; gap: 12px; justify-content: flex-end;",
+                        button {
+                            style: "padding: 10px 20px; color: #9aa0a6; background: transparent; border: 1px solid #333; border-radius: 4px; cursor: pointer; font-family: monospace;",
+                            onclick: move |_| on_close.call(()),
+                            "Cancel"
                         }
                         button {
-                            id: "submit-btn",
+                            style: "padding: 10px 20px; background: #1194a3; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: 500;",
                             onclick: move |_| {
                                 if !input_text().trim().is_empty() {
                                     on_submit.call(input_text());
@@ -76,10 +69,6 @@ pub fn FloatingInput(
                             },
                             "Send"
                         }
-                    },
-                    div {
-                        id: "help-hint",
-                        "Press Ctrl+Shift+Space to activate • Esc to close"
                     }
                 }
             }

@@ -6,5 +6,7 @@
     "tamasfe.even-better-toml",
     // UI
     "pkief.material-icon-theme",
+    // AI APIs
+    "vicanent.gcmp"
   ]
 }

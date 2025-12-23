@@ -8,37 +8,36 @@ edition = "2021"
 
 [dependencies]
 # Dioxus Core
-dioxus = { version = "0.7.2", features = ["router"] }
+dioxus = { version = "0.7", features = ["router"] }
 # Dioxus Desktop includes these built-in dependencies (DO NOT add separately):
-# - tao v0.34.5: Window management (winit fork)
-# - wry v0.53.5: Web rendering engine
-# - tray-icon v0.21.2: System tray support
-# - global-hotkey v0.7.0: Global keyboard shortcuts
-# - muda v0.17.1: Menu bar support
-# - tokio v1.48+: Async runtime
-dioxus-desktop = "0.7.2"
+# - tao v0.34: Window management (winit fork)
+# - wry v0.53: Web rendering engine
+# - tray-icon v0.21: System tray support
+# - global-hotkey v0.7: Global keyboard shortcuts
+# - muda v0.17: Menu bar support
+# - tokio v1.48: Async runtime
+dioxus-desktop = "0.7"
 
 # Serialization (JSON configuration files)
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 
 # Directory utilities for cross-platform config paths
-dirs = "5.0"
+dirs = "6.0"
 
-# Clipboard (Note: dioxus-clipboard 0.3.0 incompatible with Dioxus 0.7)
-# Use standard clipboard crate for cross-platform support
-clipboard = "0.5"
+# Clipboard (arboard replaces the unmaintained clipboard crate)
+arboard = { version = "3.6", features = ["wayland-data-control"] }
 
 # HTTP client for AI APIs (OpenAI, Anthropic, etc.)
 # IMPORTANT: Only needed if NOT using dioxus-fullstack
-# - If using fullstack features: dioxus = { version = "0.7.1", features = ["fullstack"] }
+# - If using fullstack features: dioxus = { version = "0.7", features = ["fullstack"] }
 #   (fullstack includes reqwest automatically)
 # - For desktop-only apps: must add reqwest manually
 reqwest = { version = "0.12", features = ["json", "stream"] }
 
 # Desktop notifications
-notify-rust = "4.5"
+notify-rust = "4.11"
 
 # File system monitoring (watch config changes)
 notify = "8.2"
@@ -46,7 +45,7 @@ notify = "8.2"
 # Note: Replaced once_cell with std::sync::OnceLock (Rust 1.70+)
 # We've implemented our own theme system with pure Dioxus instead
 # For a real component library, consider using:
-# - adui-dioxus = "0.1.2" (Ant Design port)
+# - adui-dioxus = "0.1" (Ant Design port)
 
 [features]
 # Platform targets (enable one or more)

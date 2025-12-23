@@ -1,4 +1,4 @@
-use clipboard::{ClipboardContext, ClipboardProvider};
+use arboard::Clipboard;
 use dioxus::prelude::*;
 
 #[component]
@@ -71,9 +71,9 @@ pub fn FloatingInput(
                         button {
                             class: "btn-secondary flex-1 p-2.5 text-sm",
                             onclick: move |_| {
-                                if let Ok(mut ctx) = ClipboardContext::new() {
-                                    if let Ok(contents) = ctx.get_contents() {
-                                        input_text.set(contents);
+                                if let Ok(mut clipboard) = Clipboard::new() {
+                                    if let Ok(text) = clipboard.get_text() {
+                                        input_text.set(text);
                                     }
                                 }
                             },
@@ -84,8 +84,8 @@ pub fn FloatingInput(
                             class: "btn-secondary flex-1 p-2.5 text-sm",
                             onclick: move |_| {
                                 if !input_text().trim().is_empty() {
-                                    if let Ok(mut ctx) = ClipboardContext::new() {
-                                        let _ = ctx.set_contents(input_text());
+                                    if let Ok(mut clipboard) = Clipboard::new() {
+                                        let _ = clipboard.set_text(input_text());
                                     }
                                 }
                             },

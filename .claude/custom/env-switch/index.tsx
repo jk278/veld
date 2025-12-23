@@ -167,7 +167,8 @@ const EnvSwitcher = () => {
           <Text color="yellow">USAGE:</Text>
           <Box marginLeft={2} flexDirection="column">
             <Text color="blue">• Kimi: https://www.kimi.com/coding/console?from=membership</Text>
-            <Text color="blue">• Minimax: https://platform.minimaxi.com/user-center/payment/coding-plan</Text>
+            <Text color="blue">• MiniMax: https://platform.minimaxi.com/user-center/payment/coding-plan</Text>
+            <Text color="blue">• GLM: https://bigmodel.cn/usercenter/glm-coding/usage</Text>
           </Box>
         </Box>
       )}

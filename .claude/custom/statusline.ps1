@@ -1,11 +1,12 @@
 # Statusline script - model, directory, git branch, progress, API calls, tokens, time
 #
-# EXECUTION: Runs ~300ms during token input/output only, NOT on terminal resize.
+# EXECUTION: Runs ~300ms during token output only, NOT on terminal resize.
 #
 
 # ===== Initialization =====
 $ESC = [char]27
 $isNarrow = $Host.UI.RawUI.WindowSize.Width -lt 100
+$showCost = $true  # Set to $false to show tokens instead
 $inputJson = $input | Out-String | ConvertFrom-Json
 $model = $inputJson.model.display_name
 $currentDir = Split-Path -Leaf $inputJson.workspace.current_dir
@@ -64,50 +65,43 @@ if ($transcriptPath -and (Test-Path $transcriptPath)) {
     $currentCalls = $count.ToString()
 }
 
-# Token usage (input↑ output↓, auto unit k/M)
+# Token usage (input↑ output↓, auto unit k/M) or Cost
 $inTokens = $inputJson.context_window.total_input_tokens
 $outTokens = $inputJson.context_window.total_output_tokens
+$cost = $inputJson.cost.total_cost_usd
 
-# Duration formatting
+# Duration formatting (always in hours, 1 decimal)
 $duration = $inputJson.cost.total_duration_ms / 1000
-$timeStr = ""
-if ($duration -gt 60) {
-    $totalMinutes = [math]::Floor($duration / 60)
-    $hours = [math]::Floor($totalMinutes / 60)
-    $minutes = $totalMinutes % 60
-    if ($hours -gt 0) {
-        $timeStr = "$ESC[90m${hours}h ${minutes}m$ESC[0m"
-    } else {
-        $timeStr = "$ESC[90m${minutes}m$ESC[0m"
-    }
-}
+$hours = [math]::Round($duration / 3600, 1)
+$timeStr = "$ESC[90m${hours}h$ESC[0m"
 
 # ===== Display Building =====
 # Output lines initialization
-$line1 = ""  # First line: Model · Dir · Branch · progress
-$line2 = ""  # Second line (narrow): calls · tokens · time
+$line1 = ""  # First line: Model · Dir · Branch
+$line2 = ""  # Second line (narrow): progress · calls · tokens · time
 
 # Progress bar
-$barSize = if ($isNarrow) { 5 } else { 10 }
+$barSize = 10
 $filled = [math]::Round($displayPercent / (100 / $barSize))
 $empty = $barSize - $filled
 # Available styles: █░ | ▓░ | ▰▱ | ◆◇ | ●○ | ■□ | ━─ | ▮╌
-$bar = ("▰" * $filled) + ("▱" * $empty)
+$bar = ("▓" * $filled) + ("░" * $empty)
 $percentColor = if ($displayPercent -gt 80) { "$ESC[33m" } else { "$ESC[32m" }
-$line1 += " · " + $percentColor + $bar + " " + $displayPercent + "%$ESC[0m"
+$line2 += $percentColor + $bar + " " + $displayPercent + "%$ESC[0m · "
 
-# Line2 content: calls · tokens · time
+# Line2 content: calls · cost/tokens · time
 $line2 += "$ESC[38;5;208m⬡ ${currentCalls}c$ESC[0m"
 
-if ($inTokens -gt 0 -or $outTokens -gt 0) {
+if ($showCost) {
+    $line2 += " · $ESC[38;5;136m$" + [math]::Round($cost, 2) + "$ESC[0m"
+}
+else {
     $inFmt = if ($inTokens -ge 1MB) { [math]::Round($inTokens / 1MB, 1).ToString() + "M" } else { [math]::Round($inTokens / 1KB, 0).ToString() + "k" }
     $outFmt = if ($outTokens -ge 1MB) { [math]::Round($outTokens / 1MB, 1).ToString() + "M" } else { [math]::Round($outTokens / 1KB, 0).ToString() + "k" }
-    $line2 += " · " + "$ESC[38;5;136m↑ $inFmt ↓ $outFmt$ESC[0m"
+    $line2 += " · " + "$ESC[90m↑$ESC[0m$ESC[38;5;136m$inFmt$ESC[0m $ESC[90m↓$ESC[0m$ESC[38;5;136m$outFmt$ESC[0m"
 }
 
-if ($timeStr) {
-    $line2 += " · ⧖ " + $timeStr
-}
+$line2 += " · ⧖ " + $timeStr
 
 # ===== Output =====
 # Format output

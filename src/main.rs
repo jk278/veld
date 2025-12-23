@@ -44,9 +44,6 @@ fn App() -> Element {
     let theme_context = init_theme();
     provide_context(theme_context.clone());
 
-    // Get theme for floating input
-    let theme = theme_context.theme;
-
     let _shortcut_handle = use_global_shortcut(
         "Ctrl+Shift+Space",
         move |state| {
@@ -112,7 +109,6 @@ fn App() -> Element {
                     println!("Tool selected and submitted: {}", text);
                     // TODO: Implement AI tool handling
                 }),
-                theme: theme(),
             }
         }
     }

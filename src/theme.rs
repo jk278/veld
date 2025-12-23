@@ -1,3 +1,6 @@
+//! Theme system using TailwindCSS dark mode
+//! 主题系统使用 TailwindCSS 暗色模式
+
 use dioxus::prelude::*;
 use dioxus_desktop::tao::{
     event::{Event as WryEvent, WindowEvent},
@@ -6,72 +9,25 @@ use dioxus_desktop::tao::{
 use crate::config::{AppConfig, ThemeMode};
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone, Copy, PartialEq)]
-pub struct Theme {
-    pub bg_primary: &'static str,
-    pub bg_secondary: &'static str,
-    pub bg_surface: &'static str,
-    pub text_primary: &'static str,
-    pub text_secondary: &'static str,
-    pub text_muted: &'static str,
-    pub accent: &'static str,
-    pub border: &'static str,
-}
-
-pub const LIGHT_THEME: Theme = Theme {
-    bg_primary: "#ffffff",
-    bg_secondary: "#f8f9fa",
-    bg_surface: "#e9ecef",
-    text_primary: "#212529",
-    text_secondary: "#495057",
-    text_muted: "#6c757d",
-    accent: "#1194a3",
-    border: "#dee2e6",
-};
-
-pub const DARK_THEME: Theme = Theme {
-    bg_primary: "#050505",
-    bg_secondary: "#111827",
-    bg_surface: "#1a1a1a",
-    text_primary: "#e8eaed",
-    text_secondary: "#9aa0a6",
-    text_muted: "#5f6368",
-    accent: "#1194a3",
-    border: "#333",
-};
-
-impl Default for Theme {
-    fn default() -> Self {
-        DARK_THEME
-    }
-}
-
 #[derive(Clone)]
 pub struct ThemeContext {
     pub theme_mode: Signal<ThemeMode>,
-    pub theme: Signal<Theme>,
     pub config: Arc<Mutex<AppConfig>>,
 }
 
-/// Initialize theme system and provide context - call this in root component
+/// Initialize theme system and provide context
+/// 初始化主题系统并提供上下文
 pub fn init_theme() -> ThemeContext {
     // Load saved config
-    let config = match AppConfig::load() {
-        Ok(config) => {
-            println!("[Theme] Configuration loaded successfully");
-            config
-        }
-        Err(e) => {
+    let config = Arc::new(Mutex::new(
+        AppConfig::load().unwrap_or_else(|e| {
             eprintln!("[Theme] Failed to load config: {}, using defaults", e);
             AppConfig::default()
-        }
-    };
+        })
+    ));
 
-    let config = Arc::new(Mutex::new(config));
     let initial_mode = config.lock().unwrap().theme.mode;
-
     let theme_mode = use_signal(move || initial_mode);
-    let mut theme = use_signal(|| DARK_THEME);
     let mut system_theme_signal = use_signal(|| SystemTheme::Dark);
     let config_clone = config.clone();
 
@@ -84,43 +40,30 @@ pub fn init_theme() -> ThemeContext {
     });
 
     // Listen for system theme changes
-    use_effect(move || {
-        dioxus_desktop::use_wry_event_handler(move |event, _| {
-            match event {
-                WryEvent::WindowEvent {
-                    event: WindowEvent::ThemeChanged(new_theme),
-                    ..
-                } => {
-                    println!("[Theme] System theme changed to: {:?}", new_theme);
-                    system_theme_signal.set(*new_theme);
-                }
-                _ => {}
-            }
-        });
+    dioxus_desktop::use_wry_event_handler(move |event, _| {
+        if let WryEvent::WindowEvent {
+            event: WindowEvent::ThemeChanged(new_theme),
+            ..
+        } = event {
+            println!("[Theme] System theme changed to: {:?}", new_theme);
+            system_theme_signal.set(*new_theme);
+            apply_theme_class(theme_mode(), *new_theme);
+        }
     });
 
+    // Apply theme on mode change
     use_effect(move || {
         let mode = theme_mode();
-
-        let current_theme = match mode {
-            ThemeMode::Light => LIGHT_THEME,
-            ThemeMode::Dark => DARK_THEME,
-            ThemeMode::System => {
-                match system_theme_signal() {
-                    SystemTheme::Dark => DARK_THEME,
-                    SystemTheme::Light => LIGHT_THEME,
-                    _ => DARK_THEME,
-                }
-            }
-        };
-        theme.set(current_theme);
+        let system_theme = system_theme_signal();
+        apply_theme_class(mode, system_theme);
     });
 
-    // Auto-save theme mode when it changes (via config module)
+    // Auto-save theme mode when it changes
     use_effect(move || {
         let mode = theme_mode();
         let config = config_clone.clone();
-        // Use config module's update method which handles saving in background
+        let system_theme = system_theme_signal();
+        apply_theme_class(mode, system_theme);
         std::thread::spawn(move || {
             if let Ok(mut config) = config.lock() {
                 config.update_theme(mode);
@@ -131,13 +74,31 @@ pub fn init_theme() -> ThemeContext {
 
     ThemeContext {
         theme_mode,
-        theme,
         config,
     }
 }
 
-/// Access theme context from any component
-pub fn use_theme() -> (Signal<ThemeMode>, Signal<Theme>) {
-    let ctx = use_context::<ThemeContext>();
-    (ctx.theme_mode, ctx.theme)
+/// Apply dark class to document element based on theme mode
+/// 根据主题模式应用 dark class 到文档元素
+fn apply_theme_class(mode: ThemeMode, system_theme: SystemTheme) {
+    let is_dark = match mode {
+        ThemeMode::Dark => true,
+        ThemeMode::Light => false,
+        ThemeMode::System => matches!(system_theme, SystemTheme::Dark),
+    };
+
+    // Use dioxus desktop eval to apply dark class
+    let script = if is_dark {
+        "document.documentElement.classList.add('dark')"
+    } else {
+        "document.documentElement.classList.remove('dark')"
+    };
+
+    dioxus::document::eval(script);
+}
+
+/// Access theme mode from any component
+/// 从任何组件访问主题模式
+pub fn use_theme() -> Signal<ThemeMode> {
+    use_context::<ThemeContext>().theme_mode
 }

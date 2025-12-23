@@ -1,13 +1,11 @@
 use clipboard::{ClipboardContext, ClipboardProvider};
 use dioxus::prelude::*;
-use crate::theme::Theme;
 
 #[component]
 pub fn FloatingInput(
     is_visible: bool,
     on_close: Callback<()>,
     on_submit: Callback<String>,
-    theme: Theme,
 ) -> Element {
     let mut input_text = use_signal(String::new);
     let mut selected_tool = use_signal(|| "explain".to_string());
@@ -35,7 +33,6 @@ pub fn FloatingInput(
 
             div {
                 class: "{content_class}",
-                style: "border-color: {theme.border}; background: {theme.bg_secondary}",
                 onclick: move |e| e.stop_propagation(),
 
                     select {
@@ -47,7 +44,6 @@ pub fn FloatingInput(
                             option {
                                 value: tool,
                                 class: "font-mono",
-                                style: "font-family: monospace",
                                 {tool.replace("_", " ")}
                             }
                         }

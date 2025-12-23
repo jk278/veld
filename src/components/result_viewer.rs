@@ -2,13 +2,13 @@
 //! 显示AI处理结果的页面
 
 use dioxus::prelude::*;
-use crate::theme::{use_theme};
+use crate::theme::use_theme;
 
 /// Result viewer component
 /// 显示特定会话的结果
 #[component]
 pub fn ResultViewer(session_id: String) -> Element {
-    let (_, theme) = use_theme();
+    let _theme_mode = use_theme();
 
     rsx! {
         div {
@@ -16,22 +16,18 @@ pub fn ResultViewer(session_id: String) -> Element {
 
             h1 {
                 class: "text-2xl font-light text-text-primary mb-4",
-                style: "color: {theme().text_primary}",
                 "Result Viewer"
             }
 
             p {
                 class: "text-text-secondary font-mono",
-                style: "color: {theme().text_secondary}",
                 "Session ID: {session_id}"
             }
 
             div {
                 class: "bg-bg-surface border border-border rounded-lg p-5 max-w-4xl",
-                style: "background: {theme().bg_surface}; border-color: {theme().border}",
                 p {
-                    class: "text-text-secondary font-mono",
-                    style: "margin: 0; color: {theme().text_secondary}",
+                    class: "text-text-secondary font-mono m-0",
                     "📊 Results will appear here..."
                 }
             }

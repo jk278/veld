@@ -18,10 +18,16 @@ dioxus = { version = "0.7", features = ["router"] }
 # - tokio v1.48: Async runtime
 dioxus-desktop = "0.7"
 
+# Async utilities (futures stream support)
+futures-util = "0.3"
+
 # Serialization (JSON configuration files)
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
+
+# Time handling
+chrono = "0.4"
 
 # Directory utilities for cross-platform config paths
 dirs = "6.0"
@@ -41,6 +47,10 @@ notify-rust = "4.11"
 
 # File system monitoring (watch config changes)
 notify = "8.2"
+
+# Markdown parsing for chat messages (with tables support)
+# pulldown-cmark 0.12: table, strikethrough, tasklist are controlled by Options, not features
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
 
 # Note: Replaced once_cell with std::sync::OnceLock (Rust 1.70+)
 # We've implemented our own theme system with pure Dioxus instead

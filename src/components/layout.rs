@@ -29,6 +29,12 @@ pub fn AppLayout() -> Element {
                 div { class: "flex-1" }
 
                 Link {
+                    to: Route::AiConfig,
+                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
+                    "AI Config"
+                }
+
+                Link {
                     to: Route::Settings,
                     class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
                     "Settings"

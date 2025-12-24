@@ -23,10 +23,52 @@ pub struct ThemeConfig {
 /// AI configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
-    pub provider: Option<String>,  // openai/anthropic/local
-    pub api_key: Option<String>,   // 加密存储的API密钥
-    pub model: Option<String>,     // 默认模型
-    pub temperature: Option<f32>,  // 生成参数
+    pub providers: Vec<ProviderConfig>,
+    pub active_provider: Option<String>,
+}
+
+/// Individual AI provider configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    pub id: String,
+    pub name: String,
+    pub provider_type: ProviderType,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub enabled: bool,
+}
+
+/// AI provider types
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ProviderType {
+    Claude,
+    Kimi,
+    MiniMax,
+    GLM,
+    UltraThink,
+}
+
+impl ProviderType {
+    pub fn default_base_url(&self) -> &'static str {
+        match self {
+            ProviderType::Claude => "https://api.anthropic.com",
+            ProviderType::Kimi => "https://api.kimi.com/coding",
+            ProviderType::MiniMax => "https://api.minimaxi.com/anthropic",
+            ProviderType::GLM => "https://open.bigmodel.cn/api/anthropic",
+            ProviderType::UltraThink => "https://api.ultrathink.ai",
+        }
+    }
+
+    pub fn default_model(&self) -> &'static str {
+        match self {
+            ProviderType::Claude => "claude-sonnet-4-20250514",
+            ProviderType::Kimi => "kimi-for-coding",
+            ProviderType::MiniMax => "MiniMax-M2.1",
+            ProviderType::GLM => "GLM-4.7",
+            ProviderType::UltraThink => "ultrathink-v1",
+        }
+    }
 }
 
 /// Shortcut configuration
@@ -89,10 +131,54 @@ impl AppConfig {
                 mode: ThemeMode::System,
             },
             ai: AiConfig {
-                provider: None,
-                api_key: None,
-                model: None,
-                temperature: None,
+                providers: vec![
+                    ProviderConfig {
+                        id: "claude".to_string(),
+                        name: "Claude Code".to_string(),
+                        provider_type: ProviderType::Claude,
+                        api_key: None,
+                        base_url: Some(ProviderType::Claude.default_base_url().to_string()),
+                        model: Some(ProviderType::Claude.default_model().to_string()),
+                        enabled: true,
+                    },
+                    ProviderConfig {
+                        id: "kimi".to_string(),
+                        name: "Kimi Coding".to_string(),
+                        provider_type: ProviderType::Kimi,
+                        api_key: None,
+                        base_url: Some(ProviderType::Kimi.default_base_url().to_string()),
+                        model: Some(ProviderType::Kimi.default_model().to_string()),
+                        enabled: true,
+                    },
+                    ProviderConfig {
+                        id: "minimax".to_string(),
+                        name: "MiniMax Coding".to_string(),
+                        provider_type: ProviderType::MiniMax,
+                        api_key: None,
+                        base_url: Some(ProviderType::MiniMax.default_base_url().to_string()),
+                        model: Some(ProviderType::MiniMax.default_model().to_string()),
+                        enabled: true,
+                    },
+                    ProviderConfig {
+                        id: "glm".to_string(),
+                        name: "GLM Coding".to_string(),
+                        provider_type: ProviderType::GLM,
+                        api_key: None,
+                        base_url: Some(ProviderType::GLM.default_base_url().to_string()),
+                        model: Some(ProviderType::GLM.default_model().to_string()),
+                        enabled: true,
+                    },
+                    ProviderConfig {
+                        id: "ultrathink".to_string(),
+                        name: "UltraThink".to_string(),
+                        provider_type: ProviderType::UltraThink,
+                        api_key: None,
+                        base_url: Some(ProviderType::UltraThink.default_base_url().to_string()),
+                        model: Some(ProviderType::UltraThink.default_model().to_string()),
+                        enabled: true,
+                    },
+                ],
+                active_provider: Some("claude".to_string()),
             },
             shortcuts: ShortcutConfig {
                 activate: Some("Ctrl+Shift+Space".to_string()),
@@ -159,6 +245,34 @@ impl AppConfig {
         std::thread::spawn(move || {
             if let Err(e) = config.save() {
                 eprintln!("[Config] Failed to save AI config: {}", e);
+            }
+        });
+    }
+
+    /// Update a single provider configuration
+    pub fn update_provider(&mut self, provider: ProviderConfig) {
+        if let Some(pos) = self.ai.providers.iter().position(|p| p.id == provider.id) {
+            self.ai.providers[pos] = provider;
+        } else {
+            self.ai.providers.push(provider);
+        }
+        // Save in background thread
+        let config = self.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = config.save() {
+                eprintln!("[Config] Failed to save AI config: {}", e);
+            }
+        });
+    }
+
+    /// Set active provider
+    pub fn set_active_provider(&mut self, provider_id: String) {
+        self.ai.active_provider = Some(provider_id);
+        // Save in background thread
+        let config = self.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = config.save() {
+                eprintln!("[Config] Failed to save active provider: {}", e);
             }
         });
     }

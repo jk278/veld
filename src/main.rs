@@ -100,7 +100,7 @@ fn App() -> Element {
         // Router with layout attribute automatically wraps all routes
         Router::<Route> {}
 
-        // Global floating input overlay (appears on all routes)
+        // Global floating input overlay (triggered by hotkey or tray, not default)
         if show_floating_input() {
             FloatingInput {
                 is_visible: show_floating_input(),
@@ -121,6 +121,8 @@ pub mod window_manager;
 pub mod theme;
 pub mod config;
 pub mod routes;
+pub mod services;
+pub mod chat_history;
 
 #[cfg(test)]
 mod tests {

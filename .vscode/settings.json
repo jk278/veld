@@ -8,7 +8,7 @@
   "[dotenv]": {
     "editor.inlineSuggest.enabled": false
   },
-  "editor.fontFamily": "JetBrains Mono, Fira Code, Google Sans Code, Source Code Pro",
+  "editor.fontFamily": "Ioskeley Mono, JetBrains Mono, Fira Code, Google Sans Code, Source Code Pro",
   "editor.fontLigatures": true,
   "rust-analyzer.checkOnSave": false
 }

@@ -26,8 +26,12 @@
       "label": "Tailwind Watch",
       "type": "shell",
       "command": "pnpm",
-      "args": ["tailwind"],
-      "presentation": { "panel": "dedicated" },
+      "args": [
+        "tailwind"
+      ],
+      "presentation": {
+        "panel": "dedicated"
+      },
       "problemMatcher": [],
       "isBackground": true
     },
@@ -35,14 +39,20 @@
       "label": "Dioxus Serve",
       "type": "shell",
       "command": "dx",
-      "args": ["serve"],
-      "presentation": { "panel": "dedicated", "focus": true },
-      "problemMatcher": [],
-      "isBackground": true
+      "args": [
+        "serve"
+      ],
+      "presentation": {
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
     },
     {
       "label": "Run Dev Setup",
-      "dependsOn": ["Tailwind Watch", "Dioxus Serve"],
+      "dependsOn": [
+        "Tailwind Watch",
+        "Dioxus Serve"
+      ],
       "dependsOrder": "parallel",
       "group": "build",
       "problemMatcher": []

@@ -35,6 +35,12 @@ pub fn AppLayout() -> Element {
                 }
 
                 Link {
+                    to: Route::McpConfig,
+                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
+                    "MCP Config"
+                }
+
+                Link {
                     to: Route::Settings,
                     class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
                     "Settings"
@@ -49,7 +55,7 @@ pub fn AppLayout() -> Element {
 
             // Main content area (allow scrolling within content only)
             div {
-                class: "flex-1 overflow-auto p-5",
+                class: "flex flex-col flex-1 overflow-hidden p-5",
 
                 Outlet::<Route> {}
             }

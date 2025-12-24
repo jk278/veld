@@ -13,16 +13,16 @@ pub fn AiConfig() -> Element {
 
     // Load current config
     let mut providers = use_signal(|| {
-        AppConfig::load()
-            .map(|c| c.ai.providers)
-            .unwrap_or_default()
-    });
-
-    let mut active_provider = use_signal(|| {
-        AppConfig::load()
-            .ok()
-            .and_then(|c| c.ai.active_provider)
-            .unwrap_or_else(|| "claude".to_string())
+        let config = AppConfig::load();
+        println!("[AI_CONFIG] Loading providers...");
+        if let Ok(c) = &config {
+            println!("[AI_CONFIG] Config loaded, {} providers", c.ai.providers.len());
+            for p in &c.ai.providers {
+                println!("[AI_CONFIG]   - id={}, name={}, has_key={}",
+                    p.id, p.name, p.api_key.as_ref().map_or(false, |k| !k.is_empty()));
+            }
+        }
+        config.map(|c| c.ai.providers).unwrap_or_default()
     });
 
     // Track which provider is being edited
@@ -42,7 +42,12 @@ pub fn AiConfig() -> Element {
 
     // Collect providers for rendering to avoid borrow issues
     let providers_list = providers();
-    let active = active_provider();
+
+    // Helper to check if a provider is usable (enabled + has API key)
+    // IMPORTANT: "Usable" means configured and ready to use, NOT "actively selected"
+    let is_provider_usable = |provider: &ProviderConfig| -> bool {
+        provider.enabled && provider.api_key.as_ref().map_or(false, |k| !k.is_empty())
+    };
 
     rsx! {
         div {
@@ -69,52 +74,6 @@ pub fn AiConfig() -> Element {
                     p {
                         class: "text-xs text-text-secondary leading-relaxed",
                         "All providers must use the Anthropic Claude API format (Messages API). This includes Claude Code, Kimi (Anthropic-compatible endpoint), MiniMax, and other Claude-compatible services."
-                    }
-                }
-            }
-
-            // Active provider selector
-            section {
-                class: "bg-bg-surface border border-border rounded-lg p-6 space-y-4",
-
-                h2 {
-                    class: "text-xl text-text-primary mb-4",
-                    "🤖 Active Provider"
-                }
-
-                p {
-                    class: "text-text-secondary text-sm mb-4",
-                    "Select the AI provider to use for requests"
-                }
-
-                div { class: "flex flex-wrap gap-2",
-                    for provider in providers_list.iter() {
-                        button {
-                            class: if active == provider.id {
-                                "px-4 py-2 rounded font-mono text-sm transition-all bg-primary text-white border border-border"
-                            } else if !provider.enabled {
-                                "px-4 py-2 rounded font-mono text-sm transition-all bg-bg-primary text-text-muted border border-border opacity-50 cursor-not-allowed"
-                            } else {
-                                "px-4 py-2 rounded font-mono text-sm transition-all bg-bg-surface text-text-primary border border-border hover:bg-primary hover:text-white"
-                            },
-                            disabled: !provider.enabled,
-                            onclick: {
-                                let pid = provider.id.clone();
-                                move |_| {
-                                    active_provider.set(pid.clone());
-                                    if let Ok(mut config) = AppConfig::load() {
-                                        config.set_active_provider(pid.clone());
-                                    }
-                                }
-                            },
-                            {provider.name.clone()}
-                            if !provider.api_key.as_ref().map_or(false, |k| !k.is_empty()) {
-                                span {
-                                    class: "ml-2 text-xs opacity-70",
-                                    "(no key)"
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -163,10 +122,21 @@ pub fn AiConfig() -> Element {
                                         class: "px-2 py-0.5 text-xs bg-bg-secondary text-text-secondary rounded font-mono",
                                         {format!("{:?}", provider.provider_type)}
                                     }
-                                    if active == provider.id {
+                                    // Status badge: Ready / Missing Key / Disabled
+                                    if is_provider_usable(provider) {
                                         span {
-                                            class: "px-2 py-0.5 text-xs bg-primary text-white rounded font-mono",
-                                            "ACTIVE"
+                                            class: "px-2 py-0.5 text-xs bg-success text-white rounded font-mono",
+                                            "✓ Ready"
+                                        }
+                                    } else if provider.enabled {
+                                        span {
+                                            class: "px-2 py-0.5 text-xs bg-warning text-white rounded font-mono",
+                                            "⚠️ Missing Key"
+                                        }
+                                    } else {
+                                        span {
+                                            class: "px-2 py-0.5 text-xs bg-bg-secondary text-text-muted rounded font-mono",
+                                            "Disabled"
                                         }
                                     }
                                 }
@@ -235,7 +205,7 @@ pub fn AiConfig() -> Element {
                                 }
 
                                 button {
-                                    class: "px-3 py-1 text-sm bg-bg-secondary text-text-secondary rounded border border-border hover:bg-error hover:text-white transition-colors",
+                                    class: "px-3 py-1 text-sm bg-bg-secondary text-text-secondary rounded border border-border hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 transition-colors",
                                     onclick: {
                                         let pid = provider.id.clone();
                                         move |_| {
@@ -442,6 +412,9 @@ pub fn AiConfig() -> Element {
                             button {
                                 class: "px-5 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-primary/90 transition-all shadow-lg shadow-primary/25 flex items-center gap-2",
                                 onclick: move |_| {
+                                    println!("[DEBUG] Saving provider: form_api_key.is_empty()={}", form_api_key().is_empty());
+                                    println!("[DEBUG] form_api_key length={}", form_api_key().len());
+
                                     let provider = ProviderConfig {
                                         id: if is_editing() { form_id() } else { format!("{:?}", form_provider_type()).to_lowercase() },
                                         name: if form_name().is_empty() {
@@ -456,9 +429,15 @@ pub fn AiConfig() -> Element {
                                         enabled: true,
                                     };
 
+                                    println!("[DEBUG] Provider to save: id={}, has_key={}",
+                                        provider.id,
+                                        provider.api_key.as_ref().map_or(false, |k| !k.is_empty())
+                                    );
+
                                     if let Ok(mut config) = AppConfig::load() {
                                         config.update_provider(provider);
                                         providers.set(config.ai.providers.clone());
+                                        println!("[DEBUG] Config saved successfully");
                                     }
                                     editing_provider.set(None);
                                 },

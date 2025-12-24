@@ -18,6 +18,9 @@ dioxus = { version = "0.7", features = ["router"] }
 # - tokio v1.48: Async runtime
 dioxus-desktop = "0.7"
 
+# Async runtime (for channels, already included by dioxus-desktop but explicitly listed here)
+tokio = { version = "1", features = ["sync"] }
+
 # Async utilities (futures stream support)
 futures-util = "0.3"
 

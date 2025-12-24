@@ -3,13 +3,14 @@
 
 use dioxus::prelude::*;
 use dioxus::document;
-use crate::services::AiClient;
+use crate::services::{chat_with_tools, AgentStep};
 use crate::theme::use_theme;
 use crate::config::AppConfig;
 use crate::chat_history::{ChatHistoryData, ChatMessage as HistoryMessage};
 use crate::components::markdown::{MarkdownContent, PlainTextContent};
 use std::time::SystemTime;
 use futures_util::stream::StreamExt;
+use tokio::sync::mpsc;
 
 /// Chat message for display
 #[derive(Clone, Debug, PartialEq)]
@@ -63,6 +64,21 @@ pub fn Home() -> Element {
     let scroll_container_id = "chat-messages-container";
     let mut last_message_count = use_signal(|| 0);
 
+    // Sidebar collapse state (persisted to config file)
+    let mut sidebar_collapsed = use_signal(|| {
+        AppConfig::load()
+            .map(|c| c.ui.sidebar_collapsed)
+            .unwrap_or(false)
+    });
+
+    // Persist sidebar state to config when changed
+    use_effect(move || {
+        let collapsed = sidebar_collapsed();
+        if let Ok(mut config) = AppConfig::load() {
+            config.update_sidebar_collapsed(collapsed);
+        }
+    });
+
     // Setup scroll state tracking in JavaScript
     use_effect(move || {
         let container_id = scroll_container_id.to_string();
@@ -108,14 +124,7 @@ pub fn Home() -> Element {
         }).collect::<Vec<_>>()
     });
 
-    // Get all providers and active provider
-    let providers = use_signal(|| {
-        AppConfig::load()
-            .ok()
-            .map(|c| c.ai.providers)
-            .unwrap_or_default()
-    });
-
+    // Active provider and MCP server (cached, updated on switch)
     let active_provider_id = use_signal(|| {
         AppConfig::load()
             .ok()
@@ -124,11 +133,30 @@ pub fn Home() -> Element {
     });
 
     // Sync messages with current session (when chat_history changes)
+    //
+    // ALERT: CRITICAL - Agent step detection logic must stay in sync with step formatting below!
+    // If you modify the step format (emojis/prefixes), you MUST update BOTH places:
+    // 1. The placeholder detection here (has_unsaved_placeholder check)
+    // 2. The step formatting in the use_coroutine block (around line 290-310)
+    //
+    // Otherwise, use_effect will overwrite in-progress agent updates, causing steps to flicker/disappear.
     use_effect(move || {
         let _ = chat_history(); // Track chat_history dependency
         if let Some(session) = chat_history().get_current_session() {
             let current_msgs: Vec<ChatMessage> = session.messages.iter().cloned().map(Into::into).collect();
-            if messages() != current_msgs {
+
+            // Check if messages has an unsaved placeholder (agent in progress)
+            // Format: "- 🔌", "- 🤔", "- 🔧", "- ✅"
+            let has_unsaved_placeholder = messages().iter().any(|m| {
+                m.content == "思考中..." ||
+                m.content.contains("- 🔌") ||
+                m.content.contains("- 🤔") ||
+                m.content.contains("- 🔧") ||
+                m.content.contains("- ✅")
+            });
+
+            // Only sync if there's no in-progress agent
+            if !has_unsaved_placeholder && messages() != current_msgs {
                 messages.set(current_msgs);
             }
         }
@@ -163,12 +191,25 @@ pub fn Home() -> Element {
     });
 
     // Helper function to get active provider info
+    // IMPORTANT: A provider is only usable if it's enabled AND has a non-empty API key
     let get_active_provider_info = move || {
-        let active_id = active_provider_id();
-        let providers_list = providers();
-        let provider = providers_list.iter().find(|p| p.id == active_id);
-        let name = provider.map(|p| p.name.clone()).unwrap_or_else(|| "No Provider".to_string());
-        let has_key = provider.and_then(|p| p.api_key.as_ref()).map_or(false, |k| !k.is_empty());
+        let config_result = AppConfig::load();
+        let (name, has_key) = match config_result {
+            Ok(config) => {
+                // Use get_usable_provider which checks: exists + enabled + has API key
+                match config.get_usable_provider() {
+                    Some(provider) => (provider.name.clone(), true),
+                    None => {
+                        // Active provider is not usable - show warning
+                        let active_id = config.ai.active_provider.as_deref().unwrap_or("none");
+                        eprintln!("[WARN] Active provider '{}' is not usable (missing, disabled, or no API key)", active_id);
+                        ("No Usable Provider".to_string(), false)
+                    }
+                }
+            }
+            Err(_) => ("No Provider".to_string(), false),
+        };
+        println!("[DEBUG] Provider state: name={}, has_key={}", name, has_key);
         (name, has_key)
     };
 
@@ -176,6 +217,7 @@ pub fn Home() -> Element {
     let tx = use_coroutine(move |mut rx: UnboundedReceiver<String>| {
         let mut messages = messages.clone();
         let mut chat_history = chat_history.clone();
+        let mut msg_counter: u64 = 0;  // Message counter for unique IDs
         async move {
             while let Some(text) = rx.next().await {
                 let text: String = text;
@@ -183,7 +225,8 @@ pub fn Home() -> Element {
                 // Add user message
                 let now_millis = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
                 let now_secs = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-                let user_msg_id = format!("msg-{}", now_millis);
+                msg_counter += 1;
+                let user_msg_id = format!("msg-{}-{}", now_millis, msg_counter);
                 let user_msg = ChatMessage {
                     id: user_msg_id.clone(),
                     role: "user".to_string(),
@@ -205,51 +248,147 @@ pub fn Home() -> Element {
                 chat_history.set(history_clone);
 
                 // Build message history for API (exclude system errors)
-                let api_messages = messages.read().iter().filter(|m| m.role != "system").map(|m| {
+                let api_messages: Vec<crate::services::ChatMessage> = messages.read().iter().filter(|m| m.role != "system").map(|m| {
                     crate::services::ChatMessage {
                         role: m.role.clone(),
                         content: m.content.clone(),
                     }
                 }).collect();
 
-                // Call AI API
-                match AiClient::chat_completion(api_messages).await {
-                    Ok(response) => {
-                        let now_millis = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
-                        let now_secs = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-                        let assistant_msg_id = format!("msg-{}", now_millis);
-                        let assistant_msg = ChatMessage {
-                            id: assistant_msg_id.clone(),
-                            role: "assistant".to_string(),
-                            content: response,
-                            timestamp: now_secs,
-                        };
-                        messages.push(assistant_msg.clone());
+                // Create channel for streaming AgentStep updates
+                let (step_tx, mut step_rx) = mpsc::unbounded_channel::<AgentStep>();
 
-                        // Update history
+                // Create temporary assistant message ID for streaming updates
+                let now_millis = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
+                let now_secs = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+                msg_counter += 1;
+                let assistant_msg_id = format!("msg-{}-{}", now_millis, msg_counter);
+
+                // Add initial placeholder message
+                messages.push(ChatMessage {
+                    id: assistant_msg_id.clone(),
+                    role: "assistant".to_string(),
+                    content: "思考中...".to_string(),
+                    timestamp: now_secs,
+                });
+
+                // Track intermediate steps and final answer
+                // IMPORTANT: Don't update chat_history during agent execution to avoid
+                // triggering the use_effect sync that overwrites our message updates
+                let mut intermediate_steps = Vec::new();
+                let mut final_response = String::new();
+
+                eprintln!("=== STARTING AGENT TASK ===");
+                let api_messages_clone = api_messages.clone();
+
+                // Spawn agent in background (but process steps in this coroutine context)
+                tokio::spawn(async move {
+                    let _ = chat_with_tools(api_messages_clone, step_tx).await;
+                });
+
+                // Process steps as they arrive
+                eprintln!("=== ENTERING STEP LOOP ===");
+                let mut step_count = 0;
+
+                while let Some(step) = step_rx.recv().await {
+                    step_count += 1;
+                    eprintln!("=== PROCESSING STEP {} ===", step_count);
+
+                    // ALERT: STEP FORMAT - If you modify these formats, update the placeholder detection
+                    // in use_effect above (line ~150) to match! Otherwise steps will flicker/disappear.
+                    match step {
+                        AgentStep::Connecting(msg) => {
+                            intermediate_steps.push(format!("- 🔌 {}", msg));
+                        }
+                        AgentStep::Thinking { short, content } => {
+                            // Use collapsible details if there's content, otherwise just show short text
+                            if let Some(thought_content) = content {
+                                intermediate_steps.push(format!("- 🤔 {}\n<details><summary>查看思考内容</summary>\n{}\n</details>", short, thought_content));
+                            } else {
+                                intermediate_steps.push(format!("- 🤔 {}", short));
+                            }
+                        }
+                        AgentStep::ToolCall { name, .. } => {
+                            intermediate_steps.push(format!("- 🔧 调用: {}", name));
+                        }
+                        AgentStep::ToolResult { name, .. } => {
+                            intermediate_steps.push(format!("- ✅ 完成: {}", name));
+                        }
+                        AgentStep::Final(text) => {
+                            final_response = text.clone();
+                            // NOTE: Don't update chat_history yet - do it after the loop
+                        }
+                    }
+
+                    // When final response arrives, create a separate message bubble for it
+                    if !final_response.is_empty() {
+                        eprintln!("=== FINAL RESPONSE RECEIVED, CREATING NEW MESSAGE ===");
+
+                        // First, update the steps message to show completion
+                        let current_msgs = messages.read().clone();
+                        if let Some(pos) = current_msgs.iter().position(|m| m.id == assistant_msg_id) {
+                            let mut updated = current_msgs;
+                            updated[pos].content = intermediate_steps.join("\n");
+                            messages.set(updated);
+                        }
+
+                        // Then, create a new message for the final response
+                        let now_millis_final = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
+                        let now_secs_final = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+                        msg_counter += 1;
+                        let final_msg_id = format!("msg-{}-{}", now_millis_final, msg_counter);
+
+                        messages.push(ChatMessage {
+                            id: final_msg_id.clone(),
+                            role: "assistant".to_string(),
+                            content: final_response.clone(),
+                            timestamp: now_secs_final,
+                        });
+
+                        // Save both messages to history
                         chat_history.write().add_message(HistoryMessage {
                             id: assistant_msg_id.clone(),
                             role: "assistant".to_string(),
-                            content: assistant_msg.content.clone(),
+                            content: intermediate_steps.join("\n"),
                             timestamp: now_secs,
+                        });
+                        chat_history.write().add_message(HistoryMessage {
+                            id: final_msg_id.clone(),
+                            role: "assistant".to_string(),
+                            content: final_response.clone(),
+                            timestamp: now_secs_final,
                         });
                         let history_clone = { (*chat_history.read()).clone() };
                         let _ = chat_history.read().save();
-                        // Trigger UI update for session list
                         chat_history.set(history_clone);
+
+                        // Break out of the loop since we're done
+                        break;
                     }
-                    Err(e) => {
-                        let now_millis = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
-                        let now_secs = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-                        let error_msg = ChatMessage {
-                            id: format!("msg-{}", now_millis),
-                            role: "system".to_string(),
-                            content: format!("Error: {}", e),
+
+                    // Update the steps message (still in progress)
+                    let display_content = intermediate_steps.join("\n");
+                    eprintln!("=== UPDATING SIGNAL (step {}, content length: {}) ===", step_count, display_content.len());
+
+                    let current_msgs = messages.read().clone();
+                    if let Some(pos) = current_msgs.iter().position(|m| m.id == assistant_msg_id) {
+                        let mut updated = current_msgs;
+                        updated[pos].content = display_content;
+                        updated[pos].timestamp = now_secs;
+                        messages.set(updated);
+                        eprintln!("=== MESSAGE UPDATED (via set) ===");
+                    } else {
+                        eprintln!("=== WARNING: MESSAGE NOT FOUND IN LIST ===");
+                        drop(current_msgs);
+                        messages.push(ChatMessage {
+                            id: assistant_msg_id.clone(),
+                            role: "assistant".to_string(),
+                            content: display_content,
                             timestamp: now_secs,
-                        };
-                        messages.push(error_msg);
+                        });
                     }
                 }
+                eprintln!("=== STEP LOOP DONE ===");
             }
         }
     });
@@ -271,6 +410,11 @@ pub fn Home() -> Element {
         let mut messages = messages.clone();
         let active_provider_id = active_provider_id.clone();
         move |_| {
+            // Don't create new session if current one is empty
+            if messages().is_empty() {
+                return;
+            }
+
             // First, save current messages to current session before creating new one
             let current_msgs = messages();
             let mut history = chat_history.write();
@@ -296,7 +440,7 @@ pub fn Home() -> Element {
     // Switch session handler
     let mut switch_session = {
         let mut chat_history = chat_history.clone();
-        let messages = messages.clone();
+        let mut messages = messages.clone();
         move |session_id: String| {
             // Save current messages before switching
             let current_msgs = messages();
@@ -310,6 +454,12 @@ pub fn Home() -> Element {
             // Then switch to the target session
             history.switch_session(&session_id);
             let _ = history.save();
+
+            // Load target session's messages directly (bypass use_effect placeholder check)
+            if let Some(session) = history.get_current_session() {
+                let session_msgs: Vec<ChatMessage> = session.messages.iter().cloned().map(Into::into).collect();
+                messages.set(session_msgs);
+            }
 
             // Trigger UI update by cloning and dropping the borrow first
             let history_clone = (*history).clone();
@@ -333,32 +483,6 @@ pub fn Home() -> Element {
         }
     };
 
-    // Clear current chat handler
-    let clear_chat = {
-        let mut chat_history = chat_history.clone();
-        let mut messages = messages.clone();
-        move |_| {
-            // Save current messages before clearing
-            let current_msgs = messages();
-            let mut history = chat_history.write();
-            if let Some(session) = history.get_current_session_mut() {
-                let history_msgs: Vec<HistoryMessage> = current_msgs.into_iter().map(Into::into).collect();
-                session.messages = history_msgs;
-            }
-            let _ = history.save();
-
-            // Then clear the session
-            history.clear_current_session();
-            let _ = history.save();
-            messages.set(vec![]);
-
-            // Trigger UI update by cloning and dropping the borrow first
-            let history_clone = (*history).clone();
-            drop(history);
-            chat_history.set(history_clone);
-        }
-    };
-
     // Send message handler
     let send_message = {
         let mut input_text = input_text.clone();
@@ -373,11 +497,20 @@ pub fn Home() -> Element {
         }
     };
 
-    // Filter enabled providers only
-    let enabled_providers = providers().iter().filter(|p| p.enabled).cloned().collect::<Vec<_>>();
+    // Filter enabled providers and MCP servers
+    let config = AppConfig::load().ok();
+    let enabled_providers = config.as_ref()
+        .map(|c| c.ai.providers.iter().filter(|p| p.enabled).cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    let enabled_mcp_servers = config.as_ref()
+        .map(|c| c.mcp.servers.iter().filter(|s| s.enabled).cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
 
     // Get current provider info for rendering
     let (active_provider_name, has_api_key) = get_active_provider_info();
+
+    // Debug: Log final state
+    println!("[DEBUG] Rendering with: provider={}, has_api_key={}", active_provider_name, has_api_key);
 
     // Get current session title - use_memo for auto-update when session changes
     let current_session_title = use_memo(move || {
@@ -391,17 +524,28 @@ pub fn Home() -> Element {
 
     rsx! {
         div {
-            class: "flex h-[calc(100vh-120px)] max-w-6xl mx-auto gap-4",
+            class: if sidebar_collapsed() {
+                "flex flex-1 gap-0 overflow-hidden"
+            } else {
+                "flex flex-1 max-w-6xl mx-auto gap-4 overflow-hidden"
+            },
 
-            // Sidebar - Session History
+            // Sidebar - Session History (collapsible)
             div {
-                class: "w-64 flex flex-col bg-bg-surface border border-border rounded-lg overflow-hidden",
+                class: if sidebar_collapsed() {
+                    "w-0 min-w-0 flex flex-col bg-bg-surface border border-border rounded-lg overflow-hidden opacity-0"
+                } else {
+                    "w-64 min-w-0 flex flex-col bg-bg-surface border border-border rounded-lg overflow-hidden opacity-100"
+                },
+                // Always apply transition for both collapse and expand
+                class: "transition-all duration-300 ease-in-out",
+
 
                 // Sidebar header
                 div {
-                    class: "p-4 border-b border-border",
+                    class: "p-4",
                     button {
-                        class: "w-full btn-primary flex items-center justify-center gap-2",
+                        class: "w-full btn-primary flex items-center justify-center gap-2 whitespace-nowrap",
                         onclick: new_chat,
                         span { class: "text-lg", "➕" }
                         "New Chat"
@@ -464,11 +608,17 @@ pub fn Home() -> Element {
 
                 // Header
                 div {
-                    class: "flex items-center justify-between px-4 py-3 border-b border-border",
+                    class: "flex items-center justify-between px-4 py-3",
 
-                    // Left side - Title and Provider Selector
+                    // Left side - Collapse button, Title and Provider Selector
                     div {
                         class: "flex items-center gap-3",
+                        // Collapse toggle button
+                        button {
+                            class: "w-8 h-8 flex items-center justify-center rounded hover:bg-bg-primary text-text-muted hover:text-text-primary transition-colors",
+                            onclick: move |_| sidebar_collapsed.set(!sidebar_collapsed()),
+                            span { class: "text-lg", if sidebar_collapsed() { "☰" } else { "«" } }
+                        }
                         div {
                             class: "w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0",
                             span { class: "text-sm", "🤖" }
@@ -498,14 +648,32 @@ pub fn Home() -> Element {
                                     }
                                 }
                             }
+
+                            // MCP status badges (enabled servers available to AI)
+                            if !enabled_mcp_servers.is_empty() {
+                                div {
+                                    class: "flex items-center gap-1 mt-0.5",
+                                    span {
+                                        class: "text-xs text-text-muted",
+                                        "MCP:"
+                                    }
+                                    for server in enabled_mcp_servers.iter() {
+                                        span {
+                                            class: "text-xs bg-success/10 text-success border border-success/30 rounded px-1.5 py-0.5 font-mono",
+                                            {server.name.clone()}
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    // Right side - Clear button
+                    // Right side - New Chat button
                     button {
-                        class: "px-2 py-1 text-xs bg-bg-secondary text-text-secondary rounded border border-border hover:bg-bg-primary hover:text-text-primary transition-colors",
-                        onclick: clear_chat,
-                        "Clear"
+                        class: "px-3 py-1 text-xs bg-primary text-white rounded border border-border hover:bg-primary/90 transition-colors flex items-center gap-1",
+                        onclick: new_chat,
+                        span { class: "text-sm", "＋" }
+                        "New Chat"
                     }
                 }
 
@@ -514,7 +682,7 @@ pub fn Home() -> Element {
                     id: scroll_container_id,
                     class: "flex-1 overflow-y-auto px-4 py-4 space-y-4",
 
-                    if messages().is_empty() {
+                    if messages.read().is_empty() {
                         div {
                             class: "flex flex-col items-center justify-center h-full text-center gap-4 opacity-50",
                             span {
@@ -538,7 +706,7 @@ pub fn Home() -> Element {
                             }
                         }
                     } else {
-                        for msg in messages().iter() {
+                        for msg in messages.read().iter() {
                             div {
                                 class: if msg.role == "user" {
                                     "flex justify-end"
@@ -587,7 +755,6 @@ pub fn Home() -> Element {
                                             }
                                             div {
                                                 class: "px-4 py-2.5 bg-bg-surface border border-border rounded-2xl rounded-tl-md markdown-body",
-                                                style: "max-width: 80%;",
                                                 MarkdownContent {
                                                     content: msg.content.clone(),
                                                     class: "text-sm text-text-primary".to_string()
@@ -606,46 +773,37 @@ pub fn Home() -> Element {
                 }
 
                 // Input area
+                // NOTE: textarea must be direct child of flex (no wrapper div) to avoid 6px ghost height issue
                 div {
-                    class: "border-t border-border px-4 py-3",
+                    class: "px-4 py-3",
                     div {
-                        class: "flex gap-2 items-end",
+                        class: "flex gap-2",
 
-                        div {
-                            class: "flex-1 relative",
-                            textarea {
-                                class: "w-full p-3 pr-10 bg-bg-primary text-text-primary border border-border rounded-lg resize-none focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono text-sm",
-                                rows: 1,
-                                placeholder: if !has_api_key {
-                                    "Configure API key first..."
-                                } else {
-                                    "Type your message... (Enter to send)"
-                                },
-                                value: input_text(),
-                                disabled: !has_api_key,
-                                oninput: move |e| input_text.set(e.value()),
-                                onkeydown: move |e| {
-                                    if e.key() == Key::Enter && has_api_key {
-                                        e.prevent_default();
-                                        let text = input_text().trim().to_string();
-                                        if !text.is_empty() {
-                                            input_text.set(String::new());
-                                            tx.send(text);
-                                        }
+                        textarea {
+                            class: "flex-1 px-3 py-2 bg-bg-primary text-text-primary border border-border rounded-lg resize-none focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono text-sm",
+                            rows: 1,
+                            placeholder: if !has_api_key {
+                                "Configure API key first..."
+                            } else {
+                                "Type your message..."
+                            },
+                            value: input_text(),
+                            disabled: !has_api_key,
+                            oninput: move |e| input_text.set(e.value()),
+                            onkeydown: move |e| {
+                                if e.key() == Key::Enter && has_api_key {
+                                    e.prevent_default();
+                                    let text = input_text().trim().to_string();
+                                    if !text.is_empty() {
+                                        input_text.set(String::new());
+                                        tx.send(text);
                                     }
-                                },
-                            }
-                            // Character count
-                            if !input_text().is_empty() {
-                                span {
-                                    class: "absolute bottom-2 right-2 text-xs text-text-muted",
-                                    {format!("{}c", input_text().chars().count())}
                                 }
-                            }
+                            },
                         }
 
                         button {
-                            class: "px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium",
+                            class: "px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium",
                             disabled: !has_api_key || input_text().trim().is_empty(),
                             onclick: send_message,
                             span { "📤" }

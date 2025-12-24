@@ -83,12 +83,32 @@ impl AiClient {
             format!("{}/v1/messages", base_url)
         };
 
-        // Anthropic Messages API request format
-        let request_body = serde_json::json!({
+        // Extract system message (if any) and filter messages to only user/assistant
+        let system_message = messages.iter()
+            .find(|m| m.role == "system")
+            .map(|m| m.content.clone());
+
+        let filtered_messages: Vec<_> = messages.into_iter()
+            .filter(|m| m.role == "user" || m.role == "assistant")
+            .map(|m| serde_json::json!({
+                "role": m.role,
+                "content": m.content
+            }))
+            .collect();
+
+        // Build request body (with optional system parameter)
+        let mut request_body_json = serde_json::json!({
             "model": model,
             "max_tokens": 4096,
-            "messages": messages,
+            "messages": filtered_messages,
         });
+
+        // Add system parameter if exists
+        if let Some(system) = system_message {
+            if let Some(obj) = request_body_json.as_object_mut() {
+                obj.insert("system".to_string(), serde_json::Value::String(system));
+            }
+        }
 
         let client = reqwest::Client::new();
         let response = client
@@ -96,7 +116,7 @@ impl AiClient {
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .header("anthropic-version", "2023-06-01")
-            .json(&request_body)
+            .json(&request_body_json)
             .send()
             .await
             .map_err(|e: reqwest::Error| AiError::Http(e.to_string()))?;

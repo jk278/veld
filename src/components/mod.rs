@@ -5,4 +5,5 @@ pub mod settings;
 pub mod result_viewer;
 pub mod about;
 pub mod ai_config;
+pub mod mcp_config;
 pub mod markdown;

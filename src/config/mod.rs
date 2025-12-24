@@ -11,7 +11,9 @@ use dirs;
 pub struct AppConfig {
     pub theme: ThemeConfig,
     pub ai: AiConfig,
+    pub mcp: McpConfig,
     pub shortcuts: ShortcutConfig,
+    pub ui: UiConfig,
 }
 
 /// Theme configuration
@@ -25,6 +27,39 @@ pub struct ThemeConfig {
 pub struct AiConfig {
     pub providers: Vec<ProviderConfig>,
     pub active_provider: Option<String>,
+}
+
+/// MCP (Model Context Protocol) configuration
+/// MCPs are tools available to AI - enabled servers are all active (no selection needed)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpConfig {
+    pub servers: Vec<McpServerConfig>,
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        McpConfig {
+            servers: vec![
+                McpServerConfig {
+                    name: "Context7".to_string(),
+                    command: "npx".to_string(),
+                    args: vec!["-y".to_string(), "@upstash/context7-mcp@latest".to_string()],
+                    env: None,
+                    enabled: false,
+                },
+            ],
+        }
+    }
+}
+
+/// Individual MCP server configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerConfig {
+    pub name: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub env: Option<std::collections::HashMap<String, String>>,
+    pub enabled: bool,
 }
 
 /// Individual AI provider configuration
@@ -78,6 +113,20 @@ pub struct ShortcutConfig {
     pub quick_summarize: Option<String>,
     pub quick_translate: Option<String>,
     pub quick_explain: Option<String>,
+}
+
+/// UI configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UiConfig {
+    pub sidebar_collapsed: bool,
+}
+
+impl Default for UiConfig {
+    fn default() -> Self {
+        UiConfig {
+            sidebar_collapsed: false,
+        }
+    }
 }
 
 /// Theme mode enum (moved from theme.rs for centralized configuration)
@@ -180,12 +229,24 @@ impl AppConfig {
                 ],
                 active_provider: Some("claude".to_string()),
             },
+            mcp: McpConfig {
+                servers: vec![
+                    McpServerConfig {
+                        name: "Context7".to_string(),
+                        command: "npx".to_string(),
+                        args: vec!["-y".to_string(), "@upstash/context7-mcp@latest".to_string()],
+                        env: None,
+                        enabled: true,
+                    },
+                ],
+            },
             shortcuts: ShortcutConfig {
                 activate: Some("Ctrl+Shift+Space".to_string()),
                 quick_summarize: Some("Ctrl+Shift+S".to_string()),
                 quick_translate: Some("Ctrl+Shift+T".to_string()),
                 quick_explain: Some("Ctrl+Shift+E".to_string()),
             },
+            ui: UiConfig::default(),
         }
     }
 
@@ -266,6 +327,8 @@ impl AppConfig {
     }
 
     /// Set active provider
+    /// IMPORTANT: Only sets the active pointer, does NOT validate if provider has API key.
+    /// The caller should ensure the provider is actually usable (enabled + has API key).
     pub fn set_active_provider(&mut self, provider_id: String) {
         self.ai.active_provider = Some(provider_id);
         // Save in background thread
@@ -277,6 +340,47 @@ impl AppConfig {
         });
     }
 
+    /// Get the active provider only if it's actually usable (enabled + has API key)
+    /// Returns None if active provider is missing, disabled, or has no API key
+    pub fn get_usable_provider(&self) -> Option<&ProviderConfig> {
+        let active_id = self.ai.active_provider.as_ref()?;
+        self.ai.providers.iter()
+            .find(|p| p.id == *active_id && p.enabled && p.api_key.as_ref().map_or(false, |k| !k.is_empty()))
+    }
+
+    /// Update MCP configuration
+    pub fn update_mcp(&mut self, mcp_config: McpConfig) {
+        self.mcp = mcp_config;
+        // Save in background thread
+        let config = self.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = config.save() {
+                eprintln!("[Config] Failed to save MCP config: {}", e);
+            }
+        });
+    }
+
+    /// Update a single MCP server configuration
+    pub fn update_mcp_server(&mut self, server: McpServerConfig) {
+        if let Some(pos) = self.mcp.servers.iter().position(|s| s.name == server.name) {
+            self.mcp.servers[pos] = server;
+        } else {
+            self.mcp.servers.push(server);
+        }
+        // Save in background thread
+        let config = self.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = config.save() {
+                eprintln!("[Config] Failed to save MCP config: {}", e);
+            }
+        });
+    }
+
+    /// Get enabled MCP servers (for AI agent tool context)
+    pub fn get_enabled_mcps(&self) -> Vec<&McpServerConfig> {
+        self.mcp.servers.iter().filter(|s| s.enabled).collect()
+    }
+
     /// Update shortcuts configuration
     pub fn update_shortcuts(&mut self, shortcuts: ShortcutConfig) {
         self.shortcuts = shortcuts;
@@ -285,6 +389,18 @@ impl AppConfig {
         std::thread::spawn(move || {
             if let Err(e) = config.save() {
                 eprintln!("[Config] Failed to save shortcuts config: {}", e);
+            }
+        });
+    }
+
+    /// Update sidebar collapsed state
+    pub fn update_sidebar_collapsed(&mut self, collapsed: bool) {
+        self.ui.sidebar_collapsed = collapsed;
+        // Save in background thread
+        let config = self.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = config.save() {
+                eprintln!("[Config] Failed to save UI config: {}", e);
             }
         });
     }

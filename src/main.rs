@@ -33,7 +33,10 @@ fn main() {
         std::mem::forget(tray);
     }
 
-    dioxus::launch(App);
+    // 隐藏顶部菜单栏，保留右键菜单（可以右键 → Inspect Element 打开开发者工具）
+    dioxus::LaunchBuilder::new()
+        .with_cfg(dioxus::desktop::Config::new().with_menu(None))
+        .launch(App);
 }
 
 #[component]

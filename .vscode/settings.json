@@ -8,7 +8,6 @@
   "[dotenv]": {
     "editor.inlineSuggest.enabled": false
   },
-  "editor.fontFamily": "Source Code Pro, JetBrains Mono, Fira Code, Google Sans Code",
-  "editor.fontLigatures": true,
-  "rust-analyzer.checkOnSave": false
+  "editor.fontFamily": "JetBrains Mono, LXGW WenKai GB",
+  "editor.fontLigatures": true
 }

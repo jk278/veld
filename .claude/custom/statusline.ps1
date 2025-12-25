@@ -85,7 +85,7 @@ $barSize = 10
 $filled = [math]::Round($displayPercent / (100 / $barSize))
 $empty = $barSize - $filled
 # Available styles: █░ | ▓░ | ▰▱ | ◆◇ | ●○ | ■□ | ━─ | ▮╌
-$bar = ("▓" * $filled) + ("░" * $empty)
+$bar = ("■" * $filled) + ("□" * $empty)
 $percentColor = if ($displayPercent -gt 80) { "$ESC[33m" } else { "$ESC[32m" }
 $line2 += $percentColor + $bar + " " + $displayPercent + "%$ESC[0m · "
 
@@ -106,11 +106,11 @@ $line2 += " · ⧖ " + $timeStr
 # ===== Output =====
 # Format output
 if ($isNarrow) {
-    Write-Output "$ESC[36m⚡$model$ESC[0m · $ESC[34m◈ $currentDir$ESC[0m$gitBranch$line1"
+    Write-Output "$ESC[36m⚡$model$ESC[0m · $ESC[34m□ $currentDir$ESC[0m$gitBranch$line1"
     if ($line2) {
         Write-Output "    $line2"
     }
 } else {
     $extra = $line1 + " · " + $line2
-    Write-Output "$ESC[36m⚡$model$ESC[0m · $ESC[34m◈ $currentDir$ESC[0m$gitBranch$extra"
+    Write-Output "$ESC[36m⚡$model$ESC[0m · $ESC[34m□ $currentDir$ESC[0m$gitBranch$extra"
 }

@@ -64,9 +64,7 @@ pub async fn chat_with_tools(
     }
 
     // Connect to all MCP servers and collect tools
-    eprintln!("=== SENDING: Connecting ===");
     let _ = tx.send(AgentStep::Connecting(format!("连接到 {} 个MCP服务器...", enabled_servers.len())));
-    eprintln!("=== SENT: Connecting ===");
 
     let (sync_tx, sync_rx) = std::sync::mpsc::channel();
     let server_configs: Vec<_> = enabled_servers.iter().map(|s| {
@@ -169,8 +167,6 @@ pub async fn chat_with_tools(
     let mut current_messages = enhanced_messages;
 
     for iteration in 0..max_iterations {
-        eprintln!("=== ITERATION {} START ===", iteration + 1);
-
         // Get AI response
         let response = AiClient::chat_completion(current_messages.clone())
             .await
@@ -179,8 +175,12 @@ pub async fn chat_with_tools(
                 AgentError::Ai(e.to_string())
             })?;
 
-        eprintln!("[MCP] [ITERATION {}] AI response: {}", iteration + 1, response);
-        eprintln!("[MCP] [ITERATION {}] Response length: {} chars", iteration + 1, response.len());
+        let response_preview = if response.len() > 100 {
+            format!("{}...", &response[..100])
+        } else {
+            response.clone()
+        };
+        eprintln!("[MCP] [ITERATION {}] Response ({} chars): {}", iteration + 1, response.len(), response_preview);
 
         // Check if response contains a tool call
         match parse_tool_call(&response) {
@@ -221,12 +221,10 @@ pub async fn chat_with_tools(
                 });
 
                 // Continue loop
-                eprintln!("=== ITERATION {} END (will continue) ===\n", iteration + 1);
             }
             Err(e) => {
                 eprintln!("[MCP] [ITERATION {}] No tool call: {}", iteration + 1, e);
                 // No tool call, return final response
-                eprintln!("=== FINAL RESPONSE, RETURNING ===\n");
                 let _ = tx.send(AgentStep::Final(response.clone()));
                 return Ok(response);
             }
@@ -234,7 +232,7 @@ pub async fn chat_with_tools(
     }
 
     // Max iterations reached
-    eprintln!("=== MAX ITERATIONS REACHED ===");
+    eprintln!("[MCP] Maximum iterations reached");
     let _ = tx.send(AgentStep::Final("达到最大迭代次数".to_string()));
     Err(AgentError::Ai("Maximum iterations reached".to_string()))
 }

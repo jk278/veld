@@ -136,6 +136,14 @@
   }
   .btn-cancel:hover { transform: translateY(-1px); }
 
+  /* Navigation tab styles */
+  .nav-tab {
+    @apply w-full text-left px-3 py-2 rounded-lg text-text-secondary hover:bg-bg-surface hover:text-text-primary transition-colors cursor-pointer;
+  }
+  .nav-tab.active {
+    @apply bg-bg-surface text-primary font-medium;
+  }
+
   /* Input field styles */
   .input-field {
     @apply w-full p-3 bg-bg-surface text-text-primary border border-border rounded font-mono outline-none;

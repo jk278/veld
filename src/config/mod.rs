@@ -53,7 +53,7 @@ impl Default for McpConfig {
 }
 
 /// Individual MCP server configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct McpServerConfig {
     pub name: String,
     pub command: String,
@@ -63,7 +63,7 @@ pub struct McpServerConfig {
 }
 
 /// Individual AI provider configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ProviderConfig {
     pub id: String,
     pub name: String,

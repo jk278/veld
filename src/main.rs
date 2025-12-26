@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 use dioxus_desktop::{
+    tao::window::WindowBuilder,
     use_global_shortcut,
     use_tray_icon_event_handler,
     use_tray_menu_event_handler,
@@ -34,8 +35,14 @@ fn main() {
     }
 
     // 隐藏顶部菜单栏，保留右键菜单（可以右键 → Inspect Element 打开开发者工具）
+    // 配置窗口以支持Windows分屏功能
+    let window = WindowBuilder::new()
+        .with_title("Veld - AI Toolkit")
+        .with_resizable(true)  // 确保窗口可调整大小，支持分屏
+        .with_min_inner_size(dioxus_desktop::tao::dpi::LogicalSize::new(400.0, 300.0));  // 最小尺寸约束
+
     dioxus::LaunchBuilder::new()
-        .with_cfg(dioxus::desktop::Config::new().with_menu(None))
+        .with_cfg(dioxus::desktop::Config::new().with_window(window).with_menu(None))
         .launch(App);
 }
 

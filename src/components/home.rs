@@ -507,10 +507,7 @@ pub fn Home() -> Element {
         .unwrap_or_default();
 
     // Get current provider info for rendering
-    let (active_provider_name, has_api_key) = get_active_provider_info();
-
-    // Debug: Log final state
-    println!("[DEBUG] Rendering with: provider={}, has_api_key={}", active_provider_name, has_api_key);
+    let (_active_provider_name, has_api_key) = get_active_provider_info();
 
     // Get current session title - use_memo for auto-update when session changes
     let current_session_title = use_memo(move || {
@@ -525,9 +522,9 @@ pub fn Home() -> Element {
     rsx! {
         div {
             class: if sidebar_collapsed() {
-                "flex flex-1 gap-0 overflow-hidden"
+                "flex flex-1 gap-0 overflow-hidden h-full"
             } else {
-                "flex flex-1 max-w-6xl mx-auto gap-4 overflow-hidden"
+                "flex flex-1 max-w-6xl mx-auto gap-4 overflow-hidden h-full"
             },
 
             // Sidebar - Session History (collapsible)
@@ -604,11 +601,11 @@ pub fn Home() -> Element {
 
             // Main chat area
             div {
-                class: "flex-1 flex flex-col bg-bg-surface border border-border rounded-lg overflow-hidden",
+                class: "flex-1 flex flex-col bg-bg-primary border border-border rounded-lg overflow-hidden",
 
                 // Header
                 div {
-                    class: "flex items-center justify-between px-4 py-3",
+                    class: "flex items-center justify-between px-4 py-3 border-b border-border relative z-10 shadow-custom",
 
                     // Left side - Collapse button, Title and Provider Selector
                     div {
@@ -628,39 +625,42 @@ pub fn Home() -> Element {
                                 class: "text-lg font-semibold text-text-primary",
                                 "{current_session_title()}"
                             }
-                            // Provider selector
-                            if !enabled_providers.is_empty() {
+                            // Provider selector and MCP badges (horizontal)
+                            if !enabled_providers.is_empty() || !enabled_mcp_servers.is_empty() {
                                 div {
-                                    class: "flex items-center gap-1 mt-0.5",
-                                    select {
-                                        class: "text-xs bg-bg-surface text-text-secondary border border-border rounded px-2 py-0.5 focus:border-primary focus:outline-none cursor-pointer",
-                                        value: active_provider_id(),
-                                        onchange: move |e| {
-                                            switch_provider(e.value());
-                                        },
+                                    class: "flex items-center gap-2 mt-0.5",
+                                    // Provider selector
+                                    if !enabled_providers.is_empty() {
+                                        select {
+                                            class: "text-xs bg-bg-surface text-text-secondary border border-border rounded px-2 py-0.5 focus:border-primary focus:outline-none cursor-pointer",
+                                            value: active_provider_id(),
+                                            onchange: move |e| {
+                                                switch_provider(e.value());
+                                            },
 
-                                        for provider in enabled_providers.iter() {
-                                            option {
-                                                value: provider.id.clone(),
-                                                {provider.name.clone()}
+                                            for provider in enabled_providers.iter() {
+                                                option {
+                                                    value: provider.id.clone(),
+                                                    {provider.name.clone()}
+                                                }
                                             }
                                         }
                                     }
-                                }
-                            }
 
-                            // MCP status badges (enabled servers available to AI)
-                            if !enabled_mcp_servers.is_empty() {
-                                div {
-                                    class: "flex items-center gap-1 mt-0.5",
-                                    span {
-                                        class: "text-xs text-text-muted",
-                                        "MCP:"
-                                    }
-                                    for server in enabled_mcp_servers.iter() {
-                                        span {
-                                            class: "text-xs bg-success/10 text-success border border-success/30 rounded px-1.5 py-0.5 font-mono",
-                                            {server.name.clone()}
+                                    // MCP status badges
+                                    if !enabled_mcp_servers.is_empty() {
+                                        div {
+                                            class: "flex items-center gap-1",
+                                            span {
+                                                class: "text-xs text-text-muted",
+                                                "MCP:"
+                                            }
+                                            for server in enabled_mcp_servers.iter() {
+                                                span {
+                                                    class: "text-xs bg-success/10 text-success border border-success/30 rounded px-1.5 py-0.5 font-mono",
+                                                    {server.name.clone()}
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -670,10 +670,9 @@ pub fn Home() -> Element {
 
                     // Right side - New Chat button
                     button {
-                        class: "px-3 py-1 text-xs bg-primary text-white rounded border border-border hover:bg-primary/90 transition-colors flex items-center gap-1",
+                        class: "w-8 h-8 flex items-center justify-center rounded-lg bg-bg-surface hover:bg-bg-secondary text-text-secondary hover:text-text-primary transition-colors",
                         onclick: new_chat,
-                        span { class: "text-sm", "＋" }
-                        "New Chat"
+                        "＋"
                     }
                 }
 
@@ -775,7 +774,7 @@ pub fn Home() -> Element {
                 // Input area
                 // NOTE: textarea must be direct child of flex (no wrapper div) to avoid 6px ghost height issue
                 div {
-                    class: "px-4 py-3",
+                    class: "px-4 py-3 border-t border-border relative z-10 shadow-custom",
                     div {
                         class: "flex gap-2",
 
@@ -808,16 +807,6 @@ pub fn Home() -> Element {
                             onclick: send_message,
                             span { "📤" }
                             "Send"
-                        }
-                    }
-
-                    // Helper text
-                    p {
-                        class: "text-xs text-text-muted text-center mt-2",
-                        if has_api_key {
-                            "Using {active_provider_name} · History saved automatically"
-                        } else {
-                            "Configure API key to start"
                         }
                     }
                 }

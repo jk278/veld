@@ -14,48 +14,36 @@ pub fn AppLayout() -> Element {
     rsx! {
         div {
             id: "app-layout",
-            class: "flex flex-col min-h-screen bg-bg-primary text-text-primary font-sans",
+            class: "flex flex-col h-screen bg-bg-primary text-text-primary font-sans overflow-hidden",
 
-            // Navigation header (sticky at top)
+            // Navigation header (fixed at top)
             nav {
-                class: "flex items-center gap-4 px-5 py-3 bg-bg-secondary border-b border-border sticky top-0 z-10",
+                class: "flex items-center gap-4 px-5 py-1.5 bg-bg-secondary border-b border-border shrink-0",
 
                 Link {
                     to: Route::Home,
-                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200 font-medium",
-                    "Veld"
+                    class: "text-text-secondary hover:text-text-primary px-3 py-0.5 rounded-md transition-all duration-200 font-medium",
+                    "Chat"
                 }
 
                 div { class: "flex-1" }
 
                 Link {
-                    to: Route::AiConfig,
-                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
-                    "AI Config"
-                }
-
-                Link {
-                    to: Route::McpConfig,
-                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
-                    "MCP Config"
-                }
-
-                Link {
                     to: Route::Settings,
-                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
+                    class: "text-text-secondary hover:text-text-primary px-3 py-0.5 rounded-md transition-all duration-200",
                     "Settings"
                 }
 
                 Link {
                     to: Route::About,
-                    class: "text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-md transition-all duration-200",
+                    class: "text-text-secondary hover:text-text-primary px-3 py-0.5 rounded-md transition-all duration-200",
                     "About"
                 }
             }
 
             // Main content area (allow scrolling within content only)
             div {
-                class: "flex flex-col flex-1 overflow-hidden p-5",
+                class: "flex-1 flex-col overflow-hidden p-3",
 
                 Outlet::<Route> {}
             }

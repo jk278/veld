@@ -6,6 +6,7 @@ pub mod settings_tabs;
 pub mod result_viewer;
 pub mod about;
 pub mod markdown;
+pub mod code_block;
 pub mod chat;
 
 // UI component library

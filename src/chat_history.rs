@@ -16,7 +16,7 @@ pub struct ChatMessage {
 }
 
 /// Chat session (a conversation)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChatSession {
     pub id: String,
     pub title: String,
@@ -27,7 +27,7 @@ pub struct ChatSession {
 }
 
 /// All chat history data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChatHistoryData {
     pub sessions: Vec<ChatSession>,
     pub current_session_id: Option<String>,

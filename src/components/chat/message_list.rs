@@ -132,7 +132,7 @@ fn UserMessageBubble(content: String, timestamp: u64) -> Element {
 fn AssistantMessageBubble(content: String, timestamp: u64) -> Element {
     rsx! {
         div {
-            class: "max-w-2xl",
+            class: "max-w-2xl w-full",
             div {
                 class: "flex items-start gap-2",
                 div {
@@ -140,7 +140,7 @@ fn AssistantMessageBubble(content: String, timestamp: u64) -> Element {
                     "🤖"
                 }
                 div {
-                    class: "px-4 py-2.5 bg-bg-surface border border-border rounded-2xl rounded-tl-md markdown-body",
+                    class: "px-4 py-2.5 bg-bg-surface border border-border rounded-2xl rounded-tl-md markdown-body w-full overflow-hidden",
                     MarkdownContent {
                         content: content.clone(),
                         class: "text-sm text-text-primary".to_string()

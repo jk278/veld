@@ -43,6 +43,7 @@ pub fn use_chat_coroutine(
     chat_history: Signal<ChatHistoryData>,
 ) -> Coroutine<String> {
     use_coroutine(move |mut rx: UnboundedReceiver<String>| {
+        // Clone signals at the beginning
         let mut messages = messages.clone();
         let mut chat_history = chat_history.clone();
         let mut msg_counter: u64 = 0;
@@ -70,7 +71,7 @@ pub fn use_chat_coroutine(
                     content: text.clone(),
                     timestamp: now_secs,
                 });
-                let history_clone = { (*chat_history.read()).clone() };
+                let history_clone = (*chat_history.read()).clone();
                 let _ = chat_history.read().save();
                 // Trigger UI update for session list
                 chat_history.set(history_clone);
@@ -107,11 +108,14 @@ pub fn use_chat_coroutine(
                 let mut final_response = String::new();
 
                 eprintln!("=== STARTING AGENT TASK ===");
-                let api_messages_clone = api_messages.clone();
 
                 // Spawn agent in background (but process steps in this coroutine context)
+                let api_messages_clone = api_messages.clone();
+                let step_tx_clone = step_tx.clone();
                 tokio::spawn(async move {
-                    let _ = chat_with_tools(api_messages_clone, step_tx).await;
+                    if let Err(e) = chat_with_tools(api_messages_clone, step_tx_clone).await {
+                        eprintln!("[HOOKS] Agent error: {:?}", e);
+                    }
                 });
 
                 // Process steps as they arrive
@@ -186,7 +190,7 @@ pub fn use_chat_coroutine(
                             content: final_response.clone(),
                             timestamp: now_secs_final,
                         });
-                        let history_clone = { (*chat_history.read()).clone() };
+                        let history_clone = (*chat_history.read()).clone();
                         let _ = chat_history.read().save();
                         chat_history.set(history_clone);
 
@@ -224,23 +228,29 @@ pub fn use_chat_coroutine(
 
 /// Hook for message sync with chat history
 ///
-/// # CRITICAL: Agent Step Detection
-/// This effect syncs messages with the current session. It checks for unsaved
-/// placeholder messages (agent in progress) to avoid overwriting in-progress
-/// agent updates.
-///
-/// ALERT: If you modify the step format (emojis/prefixes), you MUST update BOTH places:
-/// 1. The placeholder detection here (has_unsaved_placeholder check)
-/// 2. The step formatting in use_chat_coroutine (around line 125-140)
-///
-/// Otherwise, use_effect will overwrite in-progress agent updates, causing steps to flicker/disappear.
+/// Syncs messages with current session. Skips sync if:
+/// - Session has no messages (prevents overwriting user input)
+/// - Agent is in progress (has placeholder markers)
 pub fn use_message_sync(
     mut messages: Signal<Vec<ChatMessage>>,
     chat_history: Signal<ChatHistoryData>,
 ) {
+    // Track both messages and chat_history explicitly
+    let messages_dep = messages.clone();
+    let chat_history_dep = chat_history.clone();
+
     use_effect(move || {
-        let _ = chat_history(); // Track chat_history dependency
+        // Explicitly read both signals to track dependencies
+        let _ = messages_dep();
+        let _ = chat_history_dep();
+
         if let Some(session) = chat_history().get_current_session() {
+            // Only sync if the session has messages
+            // This prevents overwriting user input when switching to an empty session
+            if session.messages.is_empty() {
+                return;
+            }
+
             let current_msgs: Vec<ChatMessage> = session.messages.iter().cloned().map(Into::into).collect();
 
             // Check if messages has an unsaved placeholder (agent in progress)

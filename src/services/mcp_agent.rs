@@ -176,7 +176,8 @@ pub async fn chat_with_tools(
             })?;
 
         let response_preview = if response.len() > 100 {
-            format!("{}...", &response[..100])
+            // Use char slicing to avoid cutting multi-byte characters (like Chinese)
+            format!("{}...", response.chars().take(100).collect::<String>())
         } else {
             response.clone()
         };

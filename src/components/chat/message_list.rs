@@ -68,6 +68,12 @@ pub fn EmptyState(has_api_key: bool) -> Element {
 /// Individual message bubble
 #[component]
 fn MessageBubble(message: ChatMessage) -> Element {
+    // Check if this is an intermediate step (contains emoji markers)
+    let is_intermediate = message.content.contains("- 🔌") ||
+        message.content.contains("- 🤔") ||
+        message.content.contains("- 🔧") ||
+        message.content.contains("- ✅");
+
     rsx! {
         div {
             class: if message.role == "user" {
@@ -92,6 +98,7 @@ fn MessageBubble(message: ChatMessage) -> Element {
                 AssistantMessageBubble {
                     content: message.content.clone(),
                     timestamp: message.timestamp,
+                    is_intermediate,
                 }
             }
         }
@@ -103,25 +110,13 @@ fn MessageBubble(message: ChatMessage) -> Element {
 fn UserMessageBubble(content: String, timestamp: u64) -> Element {
     rsx! {
         div {
-            class: "max-w-2xl",
+            class: "max-w-2xl max-w-[80%] flex justify-end",
             div {
-                class: "flex items-start gap-2 justify-end",
-                div {
-                    class: "px-4 py-2.5 bg-primary text-white rounded-2xl rounded-tr-md",
-                    style: "max-width: 80%;",
-                    PlainTextContent {
-                        content: content.clone(),
-                        class: "text-sm leading-relaxed".to_string()
-                    }
+                class: "px-4 py-2.5 bg-primary text-white rounded-2xl rounded-tr-md",
+                PlainTextContent {
+                    content: content.clone(),
+                    class: "text-sm leading-relaxed".to_string()
                 }
-                div {
-                    class: "w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs shrink-0",
-                    "👤"
-                }
-            }
-            p {
-                class: "text-xs text-text-muted mt-1 text-right",
-                {format_timestamp(timestamp)}
             }
         }
     }
@@ -129,27 +124,28 @@ fn UserMessageBubble(content: String, timestamp: u64) -> Element {
 
 /// Assistant message bubble
 #[component]
-fn AssistantMessageBubble(content: String, timestamp: u64) -> Element {
+fn AssistantMessageBubble(content: String, timestamp: u64, is_intermediate: bool) -> Element {
     rsx! {
         div {
             class: "max-w-2xl w-full",
-            div {
-                class: "flex items-start gap-2",
+            if is_intermediate {
+                // Intermediate steps: render markdown with special styling
                 div {
-                    class: "w-7 h-7 rounded-full bg-bg-secondary flex items-center justify-center text-xs shrink-0",
-                    "🤖"
-                }
-                div {
-                    class: "px-4 py-2.5 bg-bg-surface border border-border rounded-2xl rounded-tl-md markdown-body w-full overflow-hidden",
+                    class: "px-3 py-2 bg-bg-surface/50 rounded-lg text-xs text-text-secondary font-mono markdown-body",
                     MarkdownContent {
                         content: content.clone(),
-                        class: "text-sm text-text-primary".to_string()
+                        class: String::new()
                     }
                 }
-            }
-            p {
-                class: "text-xs text-text-muted mt-1",
-                {format_timestamp(timestamp)}
+            } else {
+                // Final answer: normal markdown rendering
+                div {
+                    class: "markdown-body w-full text-sm text-text-primary",
+                    MarkdownContent {
+                        content: content.clone(),
+                        class: String::new()
+                    }
+                }
             }
         }
     }

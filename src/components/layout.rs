@@ -18,7 +18,7 @@ pub fn AppLayout() -> Element {
 
             // Navigation header (fixed at top)
             nav {
-                class: "flex items-center gap-4 px-5 py-1.5 bg-bg-secondary border-b border-border shrink-0",
+                class: "flex items-center gap-4 px-4 py-2 bg-bg-secondary shrink-0",
 
                 Link {
                     to: Route::Home,
@@ -43,7 +43,7 @@ pub fn AppLayout() -> Element {
 
             // Main content area (allow scrolling within content only)
             div {
-                class: "flex-1 flex-col overflow-hidden p-3",
+                class: "flex-1 flex-col overflow-hidden",
 
                 Outlet::<Route> {}
             }

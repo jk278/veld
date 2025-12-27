@@ -2,6 +2,9 @@
 
 @theme {
   --color-primary: #1194a3;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
 
   --color-bg-primary: #ffffff;
   --color-bg-secondary: #f8f9fa;
@@ -35,6 +38,9 @@
     --color-text-secondary: #9aa0a6;
     --color-text-muted: #5f6368;
     --color-border: #333333;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
     --shadow-custom: 0 1px 2px 0 rgb(255 255 255 / 0.05);
   }
 }
@@ -340,5 +346,67 @@
   .inline-code {
     @apply px-1.5 py-0.5 rounded text-sm font-mono bg-bg-surface text-text-primary;
     border: 1px solid var(--color-border);
+  }
+
+  /* Agent intermediate steps details */
+  details {
+    margin-top: 0.5em;
+  }
+  summary {
+    cursor: pointer;
+    color: var(--color-primary);
+    font-weight: 500;
+    user-select: none;
+  }
+  summary:hover {
+    text-decoration: underline;
+  }
+
+  /* Drawer sidebar overlay (narrow screen only) */
+  .drawer-overlay {
+    @apply absolute inset-0 bg-black/30 backdrop-blur-sm z-40;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease-out;
+    @media (min-width: 1024px) {
+      display: none;
+    }
+  }
+  .drawer-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Drawer sidebar - responsive: absolute on narrow, static on wide */
+  .drawer-sidebar {
+    @apply absolute top-0 left-0 h-full bg-bg-surface border-r border-border z-50;
+    width: 18rem;
+    transform: translateX(-100%);
+    transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+    @media (min-width: 1024px) {
+      @apply static w-auto;
+      border-right: none;
+      transform: none;
+    }
+  }
+  .drawer-sidebar.visible {
+    transform: translateX(0);
+  }
+  @media (min-width: 1024px) {
+    .drawer-sidebar {
+      min-width: 18rem;
+      max-width: 18rem;
+      transition: min-width 250ms cubic-bezier(0.16, 1, 0.3, 1),
+                  max-width 250ms cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 200ms ease-out,
+                  overflow 250ms ease-out;
+    }
+    .drawer-sidebar.collapsed {
+      min-width: 0;
+      max-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      border-right: none;
+    }
   }
 }

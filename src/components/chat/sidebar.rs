@@ -4,7 +4,7 @@
 use dioxus::prelude::*;
 use super::UiSession;
 
-/// Chat sidebar with session list
+/// Chat sidebar with session list (drawer overlay pattern)
 #[component]
 pub fn ChatSidebar(
     sessions: Vec<UiSession>,
@@ -12,15 +12,27 @@ pub fn ChatSidebar(
     on_new_chat: EventHandler<MouseEvent>,
     on_switch_session: EventHandler<String>,
     on_delete_session: EventHandler<String>,
+    on_close: EventHandler<MouseEvent>,
 ) -> Element {
     rsx! {
+        // Overlay backdrop (click to close, narrow screen only)
         div {
-            class: if sidebar_collapsed {
-                "w-0 min-w-0 flex flex-col bg-bg-surface border border-border rounded-lg overflow-hidden opacity-0"
-            } else {
-                "w-64 min-w-0 flex flex-col bg-bg-surface border border-border rounded-lg overflow-hidden opacity-100"
+            class: if sidebar_collapsed { "drawer-overlay" } else { "drawer-overlay visible" },
+            onclick: on_close,
+        }
+
+        // Drawer sidebar (responsive: overlay on narrow, inline on wide)
+        div {
+            class: {
+                let base = "drawer-sidebar";
+                if sidebar_collapsed {
+                    // Narrow: hidden, Wide: collapsed
+                    format!("{base} collapsed")
+                } else {
+                    // Narrow: visible, Wide: shown
+                    format!("{base} visible")
+                }
             },
-            class: "transition-all duration-300 ease-in-out",
 
             // Sidebar header
             div {

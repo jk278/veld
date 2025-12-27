@@ -25,10 +25,11 @@ pub fn Home() -> Element {
     let last_message_count = use_signal(|| 0);
 
     // Sidebar collapse state (persisted to config file)
+    // Default to collapsed to match CSS default and avoid flash
     let mut sidebar_collapsed = use_signal(|| {
         AppConfig::load()
             .map(|c| c.ui.sidebar_collapsed)
-            .unwrap_or(false)
+            .unwrap_or(true)
     });
 
     // Persist sidebar state to config when changed
@@ -128,26 +129,29 @@ pub fn Home() -> Element {
     // Get sessions list for rendering (clone to owned Vec to fix lifetime issues)
     let sessions_list = sessions().clone();
 
+    // Sidebar close handler
+    let sidebar_close_handler = {
+        let mut collapsed = sidebar_collapsed.clone();
+        move |_| collapsed.set(true)
+    };
+
     rsx! {
         div {
-            class: if sidebar_collapsed() {
-                "flex flex-1 gap-0 overflow-hidden h-full"
-            } else {
-                "flex flex-1 max-w-6xl mx-auto gap-4 overflow-hidden h-full"
-            },
+            class: "flex flex-1 overflow-hidden h-full relative gap-0 lg:gap-4",
 
-            // Sidebar - Session History (collapsible)
+            // Sidebar - Session History (drawer overlay, not in flex flow)
             ChatSidebar {
                 sessions: sessions_list,
                 sidebar_collapsed: sidebar_collapsed(),
                 on_new_chat: new_chat_for_sidebar,
                 on_switch_session: switch_session,
                 on_delete_session: delete_session,
+                on_close: sidebar_close_handler,
             }
 
-            // Main chat area
+            // Main chat area (full width)
             div {
-                class: "flex-1 flex flex-col bg-bg-primary border border-border rounded-lg overflow-hidden",
+                class: "flex-1 flex flex-col bg-bg-primary overflow-hidden",
 
                 // Header
                 ChatHeader {

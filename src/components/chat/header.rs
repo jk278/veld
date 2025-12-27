@@ -29,12 +29,8 @@ pub fn ChatHeader(
                     span { class: "text-lg", if sidebar_collapsed { "☰" } else { "«" } }
                 }
                 div {
-                    class: "w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0",
-                    span { class: "text-sm", "🤖" }
-                }
-                div {
                     h2 {
-                        class: "text-lg font-semibold text-text-primary",
+                        class: "text-base font-medium text-text-primary",
                         "{current_session_title}"
                     }
                     // Provider selector and MCP badges (horizontal)

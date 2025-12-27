@@ -33,23 +33,23 @@ impl From<ChatMessage> for HistoryMessage {
 }
 
 /// Hook for the chat coroutine that handles AI calls and streaming responses
-///
-/// # IMPORTANT: Agent Step Detection
-/// This hook contains agent step detection logic that must stay in sync with
-/// the placeholder detection in the message sync effect. If you modify the
-/// step format (emojis/prefixes), you MUST update BOTH places.
 pub fn use_chat_coroutine(
     messages: Signal<Vec<ChatMessage>>,
     chat_history: Signal<ChatHistoryData>,
+    is_agent_running: Signal<bool>,
 ) -> Coroutine<String> {
     use_coroutine(move |mut rx: UnboundedReceiver<String>| {
         // Clone signals at the beginning
         let mut messages = messages.clone();
         let mut chat_history = chat_history.clone();
+        let mut is_running = is_agent_running.clone();
         let mut msg_counter: u64 = 0;
         async move {
             while let Some(text) = rx.next().await {
                 let text: String = text;
+
+                // Mark agent as running
+                is_running.set(true);
 
                 // Add user message
                 let now_millis = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
@@ -130,21 +130,30 @@ pub fn use_chat_coroutine(
                     // in the message sync effect to match! Otherwise steps will flicker/disappear.
                     match step {
                         AgentStep::Connecting(msg) => {
-                            intermediate_steps.push(format!("- 🔌 {}", msg));
+                            intermediate_steps.push(format!("• {}", msg));
                         }
                         AgentStep::Thinking { short, content } => {
-                            // Use collapsible details if there's content, otherwise just show short text
+                            // Format thinking content: show text directly, filter out JSON
                             if let Some(thought_content) = content {
-                                intermediate_steps.push(format!("- 🤔 {}\n<details><summary>查看思考内容</summary>\n{}\n</details>", short, thought_content));
-                            } else {
-                                intermediate_steps.push(format!("- 🤔 {}", short));
+                                let formatted = format_thinking_content(&thought_content);
+                                if !formatted.trim().is_empty() {
+                                    intermediate_steps.push(formatted);
+                                }
+                            } else if !short.is_empty() {
+                                intermediate_steps.push(format!("• {}", short));
                             }
                         }
                         AgentStep::ToolCall { name, .. } => {
-                            intermediate_steps.push(format!("- 🔧 调用: {}", name));
+                            // Show loading state
+                            intermediate_steps.push(format!("• ⏳ 调用 {}", name));
                         }
                         AgentStep::ToolResult { name, .. } => {
-                            intermediate_steps.push(format!("- ✅ 完成: {}", name));
+                            // Find and update the last loading step to completed
+                            if let Some(pos) = intermediate_steps.iter().rposition(|s| s.contains("⏳")) {
+                                intermediate_steps[pos] = format!("• ✓ 调用 {}", name);
+                            } else {
+                                intermediate_steps.push(format!("• ✓ 调用 {}", name));
+                            }
                         }
                         AgentStep::Final(text) => {
                             final_response = text.clone();
@@ -194,6 +203,9 @@ pub fn use_chat_coroutine(
                         let _ = chat_history.read().save();
                         chat_history.set(history_clone);
 
+                        // Mark agent as no longer running
+                        is_running.set(false);
+
                         // Break out of the loop since we're done
                         break;
                     }
@@ -221,9 +233,54 @@ pub fn use_chat_coroutine(
                     }
                 }
                 eprintln!("=== STEP LOOP DONE ===");
+
+                // Safety: Reset running state if loop ends without Final response (error case)
+                is_running.set(false);
             }
         }
     })
+}
+
+/// Format thinking content: show text directly, filter out JSON tool calls
+fn format_thinking_content(content: &str) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut result = Vec::new();
+    let mut in_json = false;
+    let mut json_lines = Vec::new();
+
+    for line in lines {
+        let trimmed = line.trim();
+
+        // Detect JSON start
+        if trimmed.contains("{\"tool_call\"") || trimmed.contains("\"tool_call\"") ||
+           (trimmed.starts_with("{") && (trimmed.contains("\"name\"") || trimmed.contains("\"arguments\""))) {
+            in_json = true;
+            json_lines.push(line);
+            continue;
+        }
+
+        if in_json {
+            json_lines.push(line);
+            if trimmed.contains("}") {
+                in_json = false;
+                // Log filtered JSON for debugging
+                eprintln!("[FILTERED JSON TOOL CALL] {}", json_lines.join("\n"));
+                json_lines.clear();
+            }
+            continue;
+        }
+
+        if !trimmed.is_empty() {
+            result.push(line.to_string());
+        }
+    }
+
+    // Handle unclosed JSON (shouldn't happen, but log if it does)
+    if !json_lines.is_empty() {
+        eprintln!("[FILTERED JSON TOOL CALL - UNCLOSSED] {}", json_lines.join("\n"));
+    }
+
+    format!("• {}", result.join("\n"))
 }
 
 /// Hook for message sync with chat history
@@ -234,15 +291,18 @@ pub fn use_chat_coroutine(
 pub fn use_message_sync(
     mut messages: Signal<Vec<ChatMessage>>,
     chat_history: Signal<ChatHistoryData>,
+    is_agent_running: Signal<bool>,
 ) {
     // Track both messages and chat_history explicitly
     let messages_dep = messages.clone();
     let chat_history_dep = chat_history.clone();
+    let is_running_dep = is_agent_running.clone();
 
     use_effect(move || {
-        // Explicitly read both signals to track dependencies
+        // Explicitly read all signals to track dependencies
         let _ = messages_dep();
         let _ = chat_history_dep();
+        let is_running = is_running_dep();
 
         if let Some(session) = chat_history().get_current_session() {
             // Only sync if the session has messages
@@ -253,18 +313,8 @@ pub fn use_message_sync(
 
             let current_msgs: Vec<ChatMessage> = session.messages.iter().cloned().map(Into::into).collect();
 
-            // Check if messages has an unsaved placeholder (agent in progress)
-            // Format: "- 🔌", "- 🤔", "- 🔧", "- ✅"
-            let has_unsaved_placeholder = messages().iter().any(|m| {
-                m.content == "思考中..." ||
-                m.content.contains("- 🔌") ||
-                m.content.contains("- 🤔") ||
-                m.content.contains("- 🔧") ||
-                m.content.contains("- ✅")
-            });
-
-            // Only sync if there's no in-progress agent
-            if !has_unsaved_placeholder && messages() != current_msgs {
+            // Only sync if there's no in-progress agent (using explicit flag instead of content detection)
+            if !is_running && messages() != current_msgs {
                 messages.set(current_msgs);
             }
         }

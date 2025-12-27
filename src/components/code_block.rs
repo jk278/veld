@@ -35,7 +35,7 @@ fn dark_theme() -> &'static Theme {
 
 /// Get the default light theme for code highlighting
 fn light_theme() -> &'static Theme {
-    &theme_set().themes["InspiredGitHub"]
+    &theme_set().themes["base16-ocean.light"]
 }
 
 /// Language display names mapping
@@ -98,14 +98,15 @@ fn language_display_name(lang: &str) -> &str {
 
 /// Highlight code to HTML with inline styles
 /// Returns HTML string with syntax highlighting applied
-pub fn highlight_code_inline(code: &str, lang: &str) -> String {
+pub fn highlight_code_inline(code: &str, lang: &str, dark: bool) -> String {
     let syntax = syntax_set()
         .find_syntax_by_token(lang)
         .or_else(|| syntax_set().find_syntax_by_extension(lang))
         .or_else(|| syntax_set().find_syntax_by_name(lang))
         .unwrap_or_else(|| syntax_set().find_syntax_plain_text());
 
-    highlighted_html_for_string(code, syntax_set(), syntax, dark_theme())
+    let theme = if dark { dark_theme() } else { light_theme() };
+    highlighted_html_for_string(code, syntax_set(), syntax, theme)
         .unwrap_or_else(|_| html_escape(code))
 }
 
@@ -156,7 +157,7 @@ pub fn CodeBlock(
     let lang_display = language_display_name(&language);
 
     // Generate highlighted HTML on first render
-    let highlighted_html = highlight_code_inline(&code, &language);
+    let highlighted_html = highlight_code_inline(&code, &language, dark);
 
     let copy_code = {
         let code = code.clone();

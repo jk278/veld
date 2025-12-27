@@ -32,6 +32,9 @@ pub fn Home() -> Element {
             .unwrap_or(true)
     });
 
+    // Agent running state (prevents sync conflicts during execution)
+    let is_agent_running = use_signal(|| false);
+
     // Persist sidebar state to config when changed
     use_effect(move || {
         let collapsed = sidebar_collapsed();
@@ -67,13 +70,13 @@ pub fn Home() -> Element {
     });
 
     // Sync messages with current session
-    use_message_sync(messages.clone(), chat_history.clone());
+    use_message_sync(messages.clone(), chat_history.clone(), is_agent_running.clone());
 
     // Auto-scroll to bottom when new messages arrive
     use_auto_scroll(messages.clone(), last_message_count.clone(), scroll_container_id.to_string());
 
     // Chat coroutine for AI calls
-    let tx = use_chat_coroutine(messages.clone(), chat_history.clone());
+    let tx = use_chat_coroutine(messages.clone(), chat_history.clone(), is_agent_running);
 
     // Create handlers
     let new_chat_handler = use_new_chat_handler(

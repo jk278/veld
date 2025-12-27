@@ -3,6 +3,7 @@
 
 use dioxus::prelude::*;
 use crate::components::markdown::{MarkdownContent, PlainTextContent};
+use crate::theme::use_is_dark;
 
 /// Chat message for display
 #[derive(Clone, Debug, PartialEq)]
@@ -68,11 +69,8 @@ pub fn EmptyState(has_api_key: bool) -> Element {
 /// Individual message bubble
 #[component]
 fn MessageBubble(message: ChatMessage) -> Element {
-    // Check if this is an intermediate step (contains emoji markers)
-    let is_intermediate = message.content.contains("- 🔌") ||
-        message.content.contains("- 🤔") ||
-        message.content.contains("- 🔧") ||
-        message.content.contains("- ✅");
+    // Check if this is an intermediate step (contains bullet point marker)
+    let is_intermediate = message.content.contains("• ");
 
     rsx! {
         div {
@@ -122,19 +120,73 @@ fn UserMessageBubble(content: String, timestamp: u64) -> Element {
     }
 }
 
+/// Parse a thinking step line, returning (short, optional_detail)
+fn parse_thinking_step(line: &str) -> Option<(String, Option<String>)> {
+    line.strip_prefix("• ").map(|step_text| {
+        if let Some(idx) = step_text.find('|') {
+            let short = step_text[..idx].to_string();
+            let detail = step_text[idx + 1..].to_string();
+            (short, Some(detail))
+        } else {
+            (step_text.to_string(), None)
+        }
+    })
+}
+
 /// Assistant message bubble
 #[component]
 fn AssistantMessageBubble(content: String, timestamp: u64, is_intermediate: bool) -> Element {
+    let is_dark = use_is_dark();
+
+    // Count steps for the summary
+    let step_count = content.matches("• ").count();
+
     rsx! {
         div {
             class: "max-w-2xl w-full",
             if is_intermediate {
-                // Intermediate steps: render markdown with special styling
+                // Intermediate steps: collapsible panel
                 div {
-                    class: "px-3 py-2 bg-bg-surface/50 rounded-lg text-xs text-text-secondary font-mono markdown-body",
-                    MarkdownContent {
-                        content: content.clone(),
-                        class: String::new()
+                    class: "thinking-process",
+                    details {
+                        summary {
+                            class: "thinking-summary cursor-pointer",
+                            "思考过程"
+                            if step_count > 0 {
+                                span { class: "ml-2 text-text-muted", "({step_count}步)" }
+                            }
+                        }
+                        div {
+                            class: "thinking-content",
+                            // Parse and render each step (split by bullet point, not newline)
+                            // Filter out empty items before rendering
+                            for part in content.split("• ").skip(1).filter_map(|part| {
+                                parse_thinking_step(&format!("• {}", part))
+                                    .filter(|(short, _)| !short.trim().is_empty())
+                            }) {
+                                div {
+                                    class: "thinking-item",
+                                    div {
+                                        class: "thinking-item-short",
+                                        MarkdownContent {
+                                            content: part.0.clone(),
+                                            class: String::new(),
+                                            dark: is_dark()
+                                        }
+                                    }
+                                    if let Some(detail_text) = &part.1 {
+                                        div {
+                                            class: "thinking-item-detail",
+                                            MarkdownContent {
+                                                content: detail_text.clone(),
+                                                class: String::new(),
+                                                dark: is_dark()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             } else {
@@ -143,7 +195,8 @@ fn AssistantMessageBubble(content: String, timestamp: u64, is_intermediate: bool
                     class: "markdown-body w-full text-sm text-text-primary",
                     MarkdownContent {
                         content: content.clone(),
-                        class: String::new()
+                        class: String::new(),
+                        dark: is_dark()
                     }
                 }
             }

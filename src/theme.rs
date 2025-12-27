@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub struct ThemeContext {
     pub theme_mode: Signal<ThemeMode>,
+    pub is_dark: Signal<bool>,
     pub config: Arc<Mutex<AppConfig>>,
 }
 
@@ -29,6 +30,7 @@ pub fn init_theme() -> ThemeContext {
     let initial_mode = config.lock().unwrap().theme.mode;
     let theme_mode = use_signal(move || initial_mode);
     let mut system_theme_signal = use_signal(|| SystemTheme::Dark);
+    let mut is_dark = use_signal(|| matches!(initial_mode, ThemeMode::Dark));
     let config_clone = config.clone();
 
     // Initialize system theme from window on first run
@@ -51,10 +53,16 @@ pub fn init_theme() -> ThemeContext {
         }
     });
 
-    // Apply theme on mode change
+    // Update is_dark when theme_mode or system_theme changes
     use_effect(move || {
         let mode = theme_mode();
         let system_theme = system_theme_signal();
+        let dark = match mode {
+            ThemeMode::Dark => true,
+            ThemeMode::Light => false,
+            ThemeMode::System => matches!(system_theme, SystemTheme::Dark),
+        };
+        is_dark.set(dark);
         apply_theme_class(mode, system_theme);
     });
 
@@ -62,8 +70,6 @@ pub fn init_theme() -> ThemeContext {
     use_effect(move || {
         let mode = theme_mode();
         let config = config_clone.clone();
-        let system_theme = system_theme_signal();
-        apply_theme_class(mode, system_theme);
         std::thread::spawn(move || {
             if let Ok(mut config) = config.lock() {
                 config.update_theme(mode);
@@ -74,6 +80,7 @@ pub fn init_theme() -> ThemeContext {
 
     ThemeContext {
         theme_mode,
+        is_dark,
         config,
     }
 }
@@ -101,4 +108,10 @@ fn apply_theme_class(mode: ThemeMode, system_theme: SystemTheme) {
 /// 从任何组件访问主题模式
 pub fn use_theme() -> Signal<ThemeMode> {
     use_context::<ThemeContext>().theme_mode
+}
+
+/// Access is_dark from any component
+/// 从任何组件访问是否暗色模式
+pub fn use_is_dark() -> Signal<bool> {
+    use_context::<ThemeContext>().is_dark
 }

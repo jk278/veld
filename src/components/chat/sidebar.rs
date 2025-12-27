@@ -13,6 +13,7 @@ pub fn ChatSidebar(
     on_switch_session: EventHandler<String>,
     on_delete_session: EventHandler<String>,
     on_close: EventHandler<MouseEvent>,
+    #[props(default)] on_auto_collapse: EventHandler<()>,
 ) -> Element {
     rsx! {
         // Overlay backdrop (click to close, narrow screen only)
@@ -59,6 +60,7 @@ pub fn ChatSidebar(
                             session: session.clone(),
                             on_switch: on_switch_session,
                             on_delete: on_delete_session,
+                            on_auto_collapse: on_auto_collapse,
                         }
                     }
                 }
@@ -73,6 +75,7 @@ pub fn SessionItem(
     session: UiSession,
     #[props(default)] on_switch: EventHandler<String>,
     #[props(default)] on_delete: EventHandler<String>,
+    #[props(default)] on_auto_collapse: EventHandler<()>,
 ) -> Element {
     rsx! {
         div {
@@ -84,7 +87,10 @@ pub fn SessionItem(
             },
             onclick: {
                 let sid = session.id.clone();
-                move |_| on_switch.call(sid.clone())
+                move |_| {
+                    on_switch.call(sid.clone());
+                    on_auto_collapse.call(());
+                }
             },
 
             span {

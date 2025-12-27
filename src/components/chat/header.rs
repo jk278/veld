@@ -24,9 +24,9 @@ pub fn ChatHeader(
                 class: "flex items-center gap-3",
                 // Collapse toggle button
                 button {
-                    class: "w-8 h-8 flex items-center justify-center rounded hover:bg-bg-primary text-text-muted hover:text-text-primary transition-colors",
+                    class: "w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-surface text-text-secondary transition-colors",
                     onclick: on_toggle_sidebar,
-                    span { class: "text-lg", if sidebar_collapsed { "☰" } else { "«" } }
+                    "☰"
                 }
                 div {
                     h2 {
@@ -76,7 +76,7 @@ pub fn ChatHeader(
 
             // Right side - New Chat button
             button {
-                class: "w-8 h-8 flex items-center justify-center rounded-lg bg-bg-surface hover:bg-bg-secondary text-text-secondary hover:text-text-primary transition-colors",
+                class: "w-8 h-8 flex items-center justify-center rounded-full bg-bg-surface hover:bg-bg-secondary text-text-secondary hover:text-text-primary transition-colors",
                 onclick: on_new_chat,
                 "＋"
             }

@@ -135,11 +135,11 @@ fn ProviderListItem(
 
     rsx! {
         div {
-            class: "flex items-center justify-between p-4 bg-bg-surface border border-border rounded-md hover:border-primary transition-colors",
+            class: "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-bg-surface border border-border rounded-md hover:border-primary transition-colors",
             div {
-                class: "flex-1",
+                class: "flex-1 min-w-0",
                 div {
-                    class: "flex items-center gap-3 mb-2",
+                    class: "flex flex-wrap items-center gap-2 mb-2",
                     span {
                         class: "font-mono font-medium text-text-primary",
                         "{provider.name}"
@@ -175,7 +175,7 @@ fn ProviderListItem(
                 }
             }
             div {
-                class: "flex items-center gap-2",
+                class: "flex flex-wrap items-center gap-2 sm:flex-nowrap",
                 label {
                     class: "flex items-center gap-2 cursor-pointer text-text-secondary hover:text-text-primary transition-colors text-sm",
                     input {
@@ -195,8 +195,8 @@ fn ProviderListItem(
                     }
                     span { "Enabled" }
                 }
-                SecondaryButton {
-                    class: "px-3 py-1 text-sm".to_string(),
+                PrimaryButton {
+                    class: "text-sm".to_string(),
                     onclick: move |e| {
                         if let Some(handler) = onedit {
                             handler.call(e);
@@ -204,9 +204,8 @@ fn ProviderListItem(
                     },
                     "Edit"
                 }
-                Button {
-                    variant: ButtonVariant::Cancel,
-                    class: "px-3 py-1 text-sm hover:bg-red-50 dark:hover:bg-red-900/20".to_string(),
+                SecondaryButton {
+                    class: "text-sm text-error border border-error hover:bg-error hover:text-white".to_string(),
                     onclick: move |e| {
                         if let Some(handler) = ondelete {
                             handler.call(e);
@@ -287,7 +286,7 @@ fn ProviderModal(
             }
             AdvancedSection {
                 div {
-                    class: "grid grid-cols-2 gap-4",
+                    class: "grid grid-cols-1 sm:grid-cols-2 gap-4",
                     TextField {
                         label: "Base URL".to_string(),
                         icon: "🌐".to_string(),

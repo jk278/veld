@@ -133,6 +133,7 @@ pub mod config;
 pub mod routes;
 pub mod services;
 pub mod chat_history;
+pub mod hooks;
 
 #[cfg(test)]
 mod tests {

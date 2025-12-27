@@ -12,7 +12,7 @@ pub fn About() -> Element {
 
     rsx! {
         div {
-            class: "max-w-4xl mx-auto space-y-6",
+            class: "max-w-4xl mx-auto p-6 space-y-6",
 
             h1 {
                 class: "text-3xl font-light text-text-primary mb-8",

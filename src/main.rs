@@ -5,13 +5,22 @@ use crate::shortcuts::ShortcutManager;
 use crate::theme::init_theme;
 use dioxus::prelude::*;
 use dioxus_desktop::{
-  tao::window::WindowBuilder, trayicon::TrayIconEvent, use_global_shortcut,
-  use_tray_icon_event_handler, use_tray_menu_event_handler,
+  tao::window::{Icon, WindowBuilder}, trayicon::TrayIconEvent,
+  use_global_shortcut, use_tray_icon_event_handler,
+  use_tray_menu_event_handler,
 };
 use std::sync::{Arc, Mutex};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
+
+fn load_window_icon() -> Option<Icon> {
+  let bytes = include_bytes!("../assets/favicon.ico");
+  let img = image::load_from_memory(bytes).ok()?;
+  let rgba = img.to_rgba8();
+  let (width, height) = rgba.dimensions();
+  Icon::from_rgba(rgba.into_raw(), width, height).ok()
+}
 
 fn main() {
   // Initialize triggers
@@ -37,7 +46,8 @@ fn main() {
   let window = WindowBuilder::new()
     .with_title("Veld - AI Toolkit")
     .with_resizable(true)
-    .with_min_inner_size(dioxus_desktop::tao::dpi::LogicalSize::new(400.0, 300.0));
+    .with_min_inner_size(dioxus_desktop::tao::dpi::LogicalSize::new(400.0, 300.0))
+    .with_window_icon(load_window_icon());
 
   dioxus::LaunchBuilder::new()
     .with_cfg(

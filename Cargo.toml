@@ -63,6 +63,9 @@ pulldown-cmark = { version = "0.12", default-features = false, features = [
 # Syntax highlighting for code blocks (based on Sublime Text syntax definitions)
 syntect = "5.2"
 
+# Image loading for window icons
+image = "0.25"
+
 # Note: Replaced once_cell with std::sync::OnceLock (Rust 1.70+)
 # We've implemented our own theme system with pure Dioxus instead
 # For a real component library, consider using:

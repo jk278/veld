@@ -1,5 +1,12 @@
 [application]
 
+[bundle]
+identifier = "com.veld.ai"
+icon = ["assets/favicon.ico"]
+
+[bundle.linux]
+icon = "assets/icon.png"
+
 [web.app]
 
 # HTML title tag content

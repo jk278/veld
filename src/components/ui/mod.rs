@@ -1,17 +1,19 @@
 //! UI Component Library
 //! 可复用 UI 组件库 - 统一样式和交互模式
 
+pub mod badge;
 pub mod button;
+pub mod card;
 pub mod input;
 pub mod modal;
 pub mod tabs;
-pub mod card;
-pub mod badge;
 
 // Re-export commonly used components
-pub use button::{Button, ButtonVariant, PrimaryButton, SecondaryButton, CancelButton};
-pub use input::{TextField, TextArea, PasswordField};
-pub use modal::{Modal, ModalHeader, ModalContent, ModalFooter, FormSection, AdvancedSection};
-pub use tabs::{Tabs, TabList, Tab, TabPanel, NavTab};
-pub use card::{Card, StaticCard, CardHeader, CardContent, CardFooter, InfoCard, InfoCardVariant, ListItem};
-pub use badge::{Badge, BadgeVariant, StatusBadge, StatusType, Tag, ProviderBadge};
+pub use badge::{Badge, BadgeVariant, ProviderBadge, StatusBadge, StatusType, Tag};
+pub use button::{Button, ButtonVariant, CancelButton, PrimaryButton, SecondaryButton};
+pub use card::{
+  Card, CardContent, CardFooter, CardHeader, InfoCard, InfoCardVariant, ListItem, StaticCard,
+};
+pub use input::{PasswordField, TextArea, TextField};
+pub use modal::{AdvancedSection, FormSection, Modal, ModalContent, ModalFooter, ModalHeader};
+pub use tabs::{NavTab, Tab, TabList, TabPanel, Tabs};

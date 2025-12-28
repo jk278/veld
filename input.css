@@ -97,13 +97,18 @@
   }
 
   .btn-primary::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
     transition: left 500ms ease;
   }
 
@@ -130,7 +135,7 @@
   }
 
   .btn-secondary::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;
@@ -150,10 +155,11 @@
     color: var(--color-text-primary);
     border-color: var(--color-primary);
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 15%, transparent);
+    box-shadow: 0 2px 8px
+      color-mix(in srgb, var(--color-primary) 15%, transparent);
   }
 
-  .btn-secondary>* {
+  .btn-secondary > * {
     position: relative;
     z-index: 1;
   }
@@ -207,11 +213,11 @@
     word-wrap: break-word;
   }
 
-  .markdown-body>*:first-child {
+  .markdown-body > *:first-child {
     margin-top: 0 !important;
   }
 
-  .markdown-body>*:last-child {
+  .markdown-body > *:last-child {
     margin-bottom: 0 !important;
   }
 
@@ -341,7 +347,11 @@
   }
 
   .markdown-body table tbody tr:hover {
-    background-color: color-mix(in srgb, var(--color-bg-surface) 50%, transparent);
+    background-color: color-mix(
+      in srgb,
+      var(--color-bg-surface) 50%,
+      transparent
+    );
   }
 
   .markdown-body table th {
@@ -461,7 +471,7 @@
     transition: transform 200ms ease;
   }
 
-  .thinking-process details[open]>summary::before {
+  .thinking-process details[open] > summary::before {
     transform: rotate(90deg);
   }
 
@@ -527,7 +537,7 @@
   }
 
   .drawer-overlay.visible {
-    opacity: 1;
+    opacity: 1 !important;
     pointer-events: auto;
   }
 
@@ -552,29 +562,94 @@
   }
 
   .drawer-sidebar.visible {
-    transform: translateX(0);
+    transform: translateX(0) !important;
   }
 
   @media (min-width: 1024px) {
+    /* 默认收起状态 */
     .drawer-sidebar {
-      min-width: 18rem;
-      max-width: 18rem;
-      transition: min-width 250ms cubic-bezier(0.16, 1, 0.3, 1),
-        max-width 250ms cubic-bezier(0.16, 1, 0.3, 1),
-        opacity 200ms ease-out,
-        overflow 250ms ease-out;
-    }
-
-    .drawer-sidebar.collapsed {
       min-width: 0;
       max-width: 0;
       opacity: 0;
       overflow: hidden;
       border-right: none;
+      transition: min-width 250ms cubic-bezier(0.16, 1, 0.3, 1),
+        max-width 250ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out,
+        overflow 250ms ease-out;
+    }
+
+    .drawer-sidebar.visible {
+      min-width: 18rem;
+      max-width: 18rem;
+      opacity: 1;
+      overflow: visible;
     }
 
     .lg\:hidden {
       display: none;
     }
+  }
+
+  /* Command palette styles */
+  .command-palette-overlay {
+    @apply fixed inset-0 bg-black/50 flex items-center justify-center z-50;
+  }
+
+  .command-palette {
+    @apply bg-bg-surface border border-border rounded-lg shadow-2xl;
+    width: 500px;
+    max-width: 90vw;
+    max-height: 400px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .command-palette-search {
+    @apply px-4 py-3 border-b border-border;
+  }
+
+  .command-palette-input {
+    @apply w-full px-3 py-2 bg-bg-primary text-text-primary border border-border rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono text-sm;
+  }
+
+  .command-palette-header {
+    @apply flex items-center justify-between px-4 py-2 border-b border-border bg-bg-surface;
+  }
+
+  .command-palette-title {
+    @apply text-text-primary font-medium text-sm;
+  }
+
+  .command-palette-hint {
+    @apply text-text-secondary text-xs;
+  }
+
+  .command-palette-list {
+    @apply overflow-y-auto py-2;
+  }
+
+  .command-palette-item {
+    @apply flex items-center gap-3 px-4 py-2.5 text-text-secondary hover:bg-bg-secondary cursor-pointer transition-colors;
+  }
+
+  .command-palette-item.selected {
+    @apply bg-bg-secondary text-primary;
+  }
+
+  .command-palette-icon {
+    @apply text-xl;
+  }
+
+  .command-palette-keyword {
+    @apply font-mono text-sm;
+  }
+
+  .command-palette-name {
+    @apply text-sm;
+  }
+
+  .command-palette-empty {
+    @apply px-4 py-8 text-center text-text-secondary;
   }
 }

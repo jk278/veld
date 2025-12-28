@@ -3,4 +3,4 @@
 
 pub mod use_window_size;
 
-pub use use_window_size::{use_window_size, use_is_narrow_screen, use_responsive_sidebar};
+pub use use_window_size::{use_is_narrow_screen, use_responsive_sidebar, use_window_size};

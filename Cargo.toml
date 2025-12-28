@@ -32,6 +32,9 @@ thiserror = "2.0"
 # Time handling
 chrono = "0.4"
 
+# UUID generation
+uuid = { version = "1.11", features = ["v4", "serde"] }
+
 # Directory utilities for cross-platform config paths
 dirs = "6.0"
 
@@ -53,7 +56,9 @@ notify = "8.2"
 
 # Markdown parsing for chat messages (with tables support)
 # pulldown-cmark 0.12: table, strikethrough, tasklist are controlled by Options, not features
-pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+pulldown-cmark = { version = "0.12", default-features = false, features = [
+  "html",
+] }
 
 # Syntax highlighting for code blocks (based on Sublime Text syntax definitions)
 syntect = "5.2"
@@ -73,3 +78,9 @@ mobile = ["dioxus/mobile"]   # Mobile target (iOS/Android)
 [dev-dependencies]
 # Async runtime testing utilities (uses tokio from dioxus-desktop)
 tokio-test = "0.4"
+
+# RSX formatter (for veld-fmt binary)
+dioxus-autofmt = "0.7"
+
+# Rust syntax parsing (for dioxus-autofmt file formatting)
+syn = "2"

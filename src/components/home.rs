@@ -1,13 +1,17 @@
 //! Home page - Chat interface with session history
 //! 首页 - AI 聊天对话界面（带历史会话）
 
-use dioxus::prelude::*;
-use crate::theme::use_theme;
-use crate::config::AppConfig;
 use crate::chat_history::ChatHistoryData;
-use crate::components::chat::*;
-use crate::hooks::use_window_size;
 use crate::components::chat::message_list::ChatMessage;
+use crate::components::chat::*;
+use crate::config::AppConfig;
+use crate::hooks::use_window_size;
+use crate::theme::use_theme;
+use dioxus::prelude::*;
+use std::sync::{Arc, Mutex, OnceLock};
+
+// Global trigger for activating input (shared with main.rs)
+pub static ACTIVATE_INPUT_TRIGGER: OnceLock<Arc<Mutex<u64>>> = OnceLock::new();
 
 // Re-export for use in other modules
 pub use crate::components::chat::UiSession;
@@ -15,231 +19,296 @@ pub use crate::components::chat::UiSession;
 /// Home page component - Chat interface with sidebar
 #[component]
 pub fn Home() -> Element {
-    let _theme_mode = use_theme();
+  let _theme_mode = use_theme();
 
-    // Chat messages state
-    let messages = use_signal(Vec::<ChatMessage>::new);
-    let input_text = use_signal(String::new);
+  // Chat messages state
+  let messages = use_signal(Vec::<ChatMessage>::new);
+  let input_text = use_signal(String::new);
 
-    // Auto-scroll state
-    let scroll_container_id = "chat-messages-container";
-    let last_message_count = use_signal(|| 0);
+  // Auto-scroll state
+  let scroll_container_id = "chat-messages-container";
+  let last_message_count = use_signal(|| 0);
 
-    // Window width for responsive behavior
-    let window_width = use_window_size();
+  // Window width for responsive behavior
+  let window_width = use_window_size();
 
-    // Sidebar collapse state (persisted to config file)
-    // Default to collapsed to match CSS default and avoid flash
-    let mut sidebar_collapsed = use_signal(|| {
-        AppConfig::load()
-            .map(|c| c.ui.sidebar_collapsed)
-            .unwrap_or(true)
-    });
+  // Sidebar collapse state (persisted to config file)
+  // Default to collapsed to match CSS default and avoid flash
+  let mut sidebar_collapsed = use_signal(|| {
+    AppConfig::load()
+      .map(|c| c.ui.sidebar_collapsed)
+      .unwrap_or(true)
+  });
 
-    // Agent running state (prevents sync conflicts during execution)
-    let is_agent_running = use_signal(|| false);
+  // Agent running state (prevents sync conflicts during execution)
+  let is_agent_running = use_signal(|| false);
 
-    // Persist sidebar state to config when changed
-    use_effect(move || {
-        let collapsed = sidebar_collapsed();
-        if let Ok(mut config) = AppConfig::load() {
-            config.update_sidebar_collapsed(collapsed);
-        }
-    });
-
-    // Auto-collapse sidebar on narrow screens when window resizes
-    let mut collapsed_clone = sidebar_collapsed.clone();
-    dioxus_desktop::use_wry_event_handler(move |event, _| {
-        use dioxus_desktop::tao::event::{Event, WindowEvent};
-        if let Event::WindowEvent { event, .. } = event {
-            if let WindowEvent::Resized(physical_size) = event {
-                let window = dioxus_desktop::window();
-                let scale = window.scale_factor();
-                let logical_width = physical_size.width as f64 / scale;
-                // Auto-collapse on narrow, but don't auto-expand (preserve user preference)
-                if logical_width < 1024.0 && !collapsed_clone() {
-                    collapsed_clone.set(true);
-                }
-            }
-        }
-    });
-
-    // Initialize scroll state tracking
-    use_scroll_state_init(scroll_container_id.to_string());
-
-    // Session history state
-    let chat_history = use_signal(|| {
-        ChatHistoryData::load().unwrap_or_default()
-    });
-
-    // Session list for sidebar (derived from history) - use_memo for auto-update
-    let sessions = use_memo(move || {
-        let history = chat_history();
-        history.sessions.iter().map(|s| UiSession {
-            id: s.id.clone(),
-            title: s.title.clone(),
-            is_current: history.current_session_id.as_ref() == Some(&s.id),
-        }).collect::<Vec<_>>()
-    });
-
-    // Active provider and MCP server (cached, updated on switch)
-    let active_provider_id = use_signal(|| {
-        AppConfig::load()
-            .ok()
-            .and_then(|c| c.ai.active_provider)
-            .unwrap_or_else(|| "claude".to_string())
-    });
-
-    // Sync messages with current session
-    use_message_sync(messages.clone(), chat_history.clone(), is_agent_running.clone());
-
-    // Auto-scroll to bottom when new messages arrive
-    use_auto_scroll(messages.clone(), last_message_count.clone(), scroll_container_id.to_string());
-
-    // Chat coroutine for AI calls
-    let tx = use_chat_coroutine(messages.clone(), chat_history.clone(), is_agent_running);
-
-    // Create handlers
-    let new_chat_handler = use_new_chat_handler(
-        chat_history.clone(),
-        messages.clone(),
-        active_provider_id.clone(),
-    );
-
-    let switch_session = use_switch_session_handler(
-        chat_history.clone(),
-        messages.clone(),
-    );
-
-    let delete_session = use_delete_session_handler(chat_history.clone());
-
-    let switch_provider = use_switch_provider_handler(active_provider_id.clone());
-
-    let send_message_handler = use_send_message_handler(input_text.clone(), tx.clone());
-
-    // Wrapper handlers for EventHandler compatibility (create closures that clone the handler)
-    let new_chat_for_sidebar = {
-        let mut handler = new_chat_handler.clone();
-        move |_: MouseEvent| handler()
-    };
-    let new_chat_for_header = {
-        let mut handler = new_chat_handler.clone();
-        move |_: MouseEvent| handler()
-    };
-    let send_message = {
-        let mut handler = send_message_handler.clone();
-        move |_: MouseEvent| handler()
-    };
-
-    // Filter enabled providers and MCP servers
-    let config = AppConfig::load().ok();
-    let enabled_providers = config.as_ref()
-        .map(|c| c.ai.providers.iter().filter(|p| p.enabled).cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
-    let enabled_mcp_servers = config.as_ref()
-        .map(|c| c.mcp.servers.iter().filter(|s| s.enabled).cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
-
-    // Get current provider info for rendering
-    let (_active_provider_name, has_api_key) = get_active_provider_info();
-
-    // Get current session title - use_memo for auto-update when session changes
-    let current_session_title = use_memo(move || {
-        chat_history().get_current_session()
-            .map(|s| s.title.clone())
-            .unwrap_or_else(|| "New Chat".to_string())
-    });
-
-    // Get sessions list for rendering (clone to owned Vec to fix lifetime issues)
-    let sessions_list = sessions().clone();
-
-    // Sidebar close handler
-    let sidebar_close_handler = {
-        let mut collapsed = sidebar_collapsed.clone();
-        move |_| collapsed.set(true)
-    };
-
-    // Auto-collapse handler (narrow screens only)
-    let mut auto_collapse_handler = {
-        let mut collapsed = sidebar_collapsed.clone();
-        let width = window_width.clone();
-        move |_| {
-            if width() < 1024.0 {
-                collapsed.set(true);
-            }
-        }
-    };
-
-    rsx! {
-        div {
-            class: "flex flex-1 overflow-hidden h-full relative gap-0 lg:gap-4",
-
-            // Sidebar - Session History (drawer overlay, not in flex flow)
-            ChatSidebar {
-                sessions: sessions_list,
-                sidebar_collapsed: sidebar_collapsed(),
-                on_new_chat: new_chat_for_sidebar,
-                on_switch_session: switch_session,
-                on_delete_session: delete_session,
-                on_close: sidebar_close_handler,
-                on_auto_collapse: move |_| auto_collapse_handler(()),
-            }
-
-            // Main chat area (full width)
-            div {
-                class: "flex-1 flex flex-col bg-bg-primary overflow-hidden",
-
-                // Header
-                ChatHeader {
-                    current_session_title: current_session_title(),
-                    active_provider_id: active_provider_id(),
-                    enabled_providers: enabled_providers.clone(),
-                    enabled_mcp_servers: enabled_mcp_servers.clone(),
-                    sidebar_collapsed: sidebar_collapsed(),
-                    on_toggle_sidebar: move |_| sidebar_collapsed.set(!sidebar_collapsed()),
-                    on_new_chat: new_chat_for_header,
-                    on_switch_provider: switch_provider,
-                }
-
-                // Messages area (scrollable)
-                MessageList {
-                    messages: messages.read().clone(),
-                    has_api_key,
-                    scroll_container_id: scroll_container_id.to_string(),
-                }
-
-                // Input area
-                InputArea {
-                    input_text: input_text.clone(),
-                    has_api_key,
-                    on_send: send_message,
-                    tx: tx.clone(),
-                }
-            }
-        }
+  // Persist sidebar state to config when changed
+  use_effect(move || {
+    let collapsed = sidebar_collapsed();
+    if let Ok(mut config) = AppConfig::load() {
+      config.update_sidebar_collapsed(collapsed);
     }
+  });
+
+  // Auto-collapse sidebar on narrow screens when window resizes
+  let mut collapsed_clone = sidebar_collapsed.clone();
+  dioxus_desktop::use_wry_event_handler(move |event, _| {
+    use dioxus_desktop::tao::event::{Event, WindowEvent};
+    if let Event::WindowEvent { event, .. } = event {
+      if let WindowEvent::Resized(physical_size) = event {
+        let window = dioxus_desktop::window();
+        let scale = window.scale_factor();
+        let logical_width = physical_size.width as f64 / scale;
+        // Auto-collapse on narrow, but don't auto-expand (preserve user preference)
+        if logical_width < 1024.0 && !collapsed_clone() {
+          collapsed_clone.set(true);
+        }
+      }
+    }
+  });
+
+  // Initialize scroll state tracking
+  use_scroll_state_init(scroll_container_id.to_string());
+
+  // Session history state
+  let chat_history = use_signal(|| ChatHistoryData::load().unwrap_or_default());
+
+  // Session list for sidebar (derived from history) - use_memo for auto-update
+  let sessions = use_memo(move || {
+    let history = chat_history();
+    history
+      .sessions
+      .iter()
+      .map(|s| UiSession {
+        id: s.id.clone(),
+        title: s.title.clone(),
+        is_current: history.current_session_id.as_ref() == Some(&s.id),
+      })
+      .collect::<Vec<_>>()
+  });
+
+  // Active provider and MCP server (cached, updated on switch)
+  let active_provider_id = use_signal(|| {
+    AppConfig::load()
+      .ok()
+      .and_then(|c| c.ai.active_provider)
+      .unwrap_or_else(|| "claude".to_string())
+  });
+
+  // Sync messages with current session
+  use_message_sync(
+    messages.clone(),
+    chat_history.clone(),
+    is_agent_running.clone(),
+  );
+
+  // Auto-scroll to bottom when new messages arrive
+  use_auto_scroll(
+    messages.clone(),
+    last_message_count.clone(),
+    scroll_container_id.to_string(),
+  );
+
+  // Chat coroutine for AI calls
+  let tx = use_chat_coroutine(messages.clone(), chat_history.clone(), is_agent_running);
+  let tx_with_prefix =
+    use_chat_coroutine_with_prefix(messages.clone(), chat_history.clone(), is_agent_running);
+
+  // Create handlers
+  let new_chat_handler = use_new_chat_handler(
+    chat_history.clone(),
+    messages.clone(),
+    active_provider_id.clone(),
+  );
+
+  let switch_session = use_switch_session_handler(chat_history.clone(), messages.clone());
+
+  let delete_session = use_delete_session_handler(chat_history.clone());
+
+  let switch_provider = use_switch_provider_handler(active_provider_id.clone());
+
+  let send_message_handler = use_send_message_handler(input_text.clone(), tx.clone());
+
+  // Wrapper handlers for EventHandler compatibility (create closures that clone the handler)
+  let new_chat_for_sidebar = {
+    let mut handler = new_chat_handler.clone();
+    move |_: MouseEvent| handler()
+  };
+  let new_chat_for_header = {
+    let mut handler = new_chat_handler.clone();
+    move |_: MouseEvent| handler()
+  };
+  let send_message = {
+    let mut handler = send_message_handler.clone();
+    move |_: MouseEvent| handler()
+  };
+
+  // Filter enabled providers and MCP servers
+  let config = AppConfig::load().ok();
+  let enabled_providers = config
+    .as_ref()
+    .map(|c| {
+      c.ai
+        .providers
+        .iter()
+        .filter(|p| p.enabled)
+        .cloned()
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  let enabled_mcp_servers = config
+    .as_ref()
+    .map(|c| {
+      c.mcp
+        .servers
+        .iter()
+        .filter(|s| s.enabled)
+        .cloned()
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+
+  // Get current provider info for rendering
+  let (_active_provider_name, has_api_key) = get_active_provider_info();
+
+  // Get current session title - use_memo for auto-update when session changes
+  let current_session_title = use_memo(move || {
+    chat_history()
+      .get_current_session()
+      .map(|s| s.title.clone())
+      .unwrap_or_else(|| "New Chat".to_string())
+  });
+
+  // Get sessions list for rendering (clone to owned Vec to fix lifetime issues)
+  let sessions_list = sessions().clone();
+
+  // Sidebar close handler
+  let sidebar_close_handler = {
+    let mut collapsed = sidebar_collapsed.clone();
+    move |_| collapsed.set(true)
+  };
+
+  // Auto-collapse handler (narrow screens only)
+  let mut auto_collapse_handler = {
+    let mut collapsed = sidebar_collapsed.clone();
+    let width = window_width.clone();
+    move |_| {
+      if width() < 1024.0 {
+        collapsed.set(true);
+      }
+    }
+  };
+
+  // Monitor global trigger for activating input (from hotkey/tray)
+  let mut last_processed = use_signal(|| {
+    ACTIVATE_INPUT_TRIGGER
+      .get()
+      .and_then(|t| t.lock().ok().map(|g| *g))
+      .unwrap_or(0u64)
+  });
+
+  use_resource(move || {
+    async move {
+      loop {
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        if let Some(trigger) = ACTIVATE_INPUT_TRIGGER.get() {
+          if let Ok(count) = trigger.lock() {
+            let current = *count;
+            if current > last_processed() {
+              last_processed.set(current);
+              // Focus input and type "/" using JavaScript
+              let _ = dioxus::document::eval(
+                r#"
+                                    const textarea = document.querySelector('textarea.chat-input-textarea');
+                                    if (textarea) {
+                                        textarea.focus();
+                                        textarea.value = '/';
+                                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                    }
+                                "#,
+              );
+            }
+          }
+        }
+      }
+    }
+  });
+
+  rsx! {
+    div {
+      class: "flex flex-1 overflow-hidden h-full relative gap-0 lg:gap-4",
+
+      // Sidebar - Session History (drawer overlay, not in flex flow)
+      ChatSidebar {
+        sessions: sessions_list,
+        sidebar_collapsed: sidebar_collapsed(),
+        on_new_chat: new_chat_for_sidebar,
+        on_switch_session: switch_session,
+        on_delete_session: delete_session,
+        on_close: sidebar_close_handler,
+        on_auto_collapse: move |_| auto_collapse_handler(()),
+      }
+
+      // Main chat area (full width)
+      div {
+        class: "flex-1 flex flex-col bg-bg-primary overflow-hidden",
+
+        // Header
+        ChatHeader {
+          current_session_title: current_session_title(),
+          active_provider_id: active_provider_id(),
+          enabled_providers: enabled_providers.clone(),
+          enabled_mcp_servers: enabled_mcp_servers.clone(),
+          sidebar_collapsed: sidebar_collapsed(),
+          on_toggle_sidebar: move |_| sidebar_collapsed.set(!sidebar_collapsed()),
+          on_new_chat: new_chat_for_header,
+          on_switch_provider: switch_provider,
+        }
+
+        // Messages area (scrollable)
+        MessageList {
+          messages: messages.read().clone(),
+          has_api_key,
+          scroll_container_id: scroll_container_id.to_string(),
+        }
+
+        // Input area
+        InputArea {
+          input_text: input_text.clone(),
+          has_api_key,
+          on_send: send_message,
+          tx: tx.clone(),
+          tx_with_prefix: tx_with_prefix.clone(),
+        }
+      }
+    }
+  }
 }
 
 /// Helper function to get active provider info
 ///
 /// IMPORTANT: A provider is only usable if it's enabled AND has a non-empty API key
 fn get_active_provider_info() -> (String, bool) {
-    let config_result = AppConfig::load();
-    let (name, has_key) = match config_result {
-        Ok(config) => {
-            // Use get_usable_provider which checks: exists + enabled + has API key
-            match config.get_usable_provider() {
-                Some(provider) => (provider.name.clone(), true),
-                None => {
-                    // Active provider is not usable - show warning
-                    let active_id = config.ai.active_provider.as_deref().unwrap_or("none");
-                    eprintln!("[WARN] Active provider '{}' is not usable (missing, disabled, or no API key)", active_id);
-                    ("No Usable Provider".to_string(), false)
-                }
-            }
+  let config_result = AppConfig::load();
+  let (name, has_key) = match config_result {
+    Ok(config) => {
+      // Use get_usable_provider which checks: exists + enabled + has API key
+      match config.get_usable_provider() {
+        Some(provider) => (provider.name.clone(), true),
+        None => {
+          // Active provider is not usable - show warning
+          let active_id = config.ai.active_provider.as_deref().unwrap_or("none");
+          eprintln!(
+            "[WARN] Active provider '{}' is not usable (missing, disabled, or no API key)",
+            active_id
+          );
+          ("No Usable Provider".to_string(), false)
         }
-        Err(_) => ("No Provider".to_string(), false),
-    };
-    println!("[DEBUG] Provider state: name={}, has_key={}", name, has_key);
-    (name, has_key)
+      }
+    }
+    Err(_) => ("No Provider".to_string(), false),
+  };
+  println!("[DEBUG] Provider state: name={}, has_key={}", name, has_key);
+  (name, has_key)
 }

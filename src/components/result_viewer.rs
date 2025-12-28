@@ -1,36 +1,36 @@
 //! Result viewer page
 //! 显示AI处理结果的页面
 
-use dioxus::prelude::*;
 use crate::theme::use_theme;
+use dioxus::prelude::*;
 
 /// Result viewer component
 /// 显示特定会话的结果
 #[component]
 pub fn ResultViewer(session_id: String) -> Element {
-    let _theme_mode = use_theme();
+  let _theme_mode = use_theme();
 
-    rsx! {
-        div {
-            class: "flex flex-col items-center justify-center min-h-[calc(100vh-80px)] text-center space-y-6",
+  rsx! {
+    div {
+      class: "flex flex-col items-center justify-center min-h-[calc(100vh-80px)] text-center space-y-6",
 
-            h1 {
-                class: "text-2xl font-light text-text-primary mb-4",
-                "Result Viewer"
-            }
+      h1 {
+        class: "text-2xl font-light text-text-primary mb-4",
+        "Result Viewer"
+      }
 
-            p {
-                class: "text-text-secondary font-mono",
-                "Session ID: {session_id}"
-            }
+      p {
+        class: "text-text-secondary font-mono",
+        "Session ID: {session_id}"
+      }
 
-            div {
-                class: "bg-bg-surface border border-border rounded-lg p-5 max-w-4xl",
-                p {
-                    class: "text-text-secondary font-mono m-0",
-                    "📊 Results will appear here..."
-                }
-            }
+      div {
+        class: "bg-bg-surface border border-border rounded-lg p-5 max-w-4xl",
+        p {
+          class: "text-text-secondary font-mono m-0",
+          "📊 Results will appear here..."
         }
+      }
     }
+  }
 }

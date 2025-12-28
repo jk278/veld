@@ -56,6 +56,18 @@
       "dependsOrder": "parallel",
       "group": "build",
       "problemMatcher": []
+    },
+    {
+      "label": "Format RSX",
+      "type": "shell",
+      "command": "cargo",
+      "args": [
+        "run",
+        "--example",
+        "veld_fmt"
+      ],
+      "group": "build",
+      "problemMatcher": []
     }
   ]
 }

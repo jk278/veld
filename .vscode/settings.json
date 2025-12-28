@@ -1,5 +1,6 @@
 {
   "chat.agent.enabled": false,
+  "editor.detectIndentation": false,
   "editor.insertSpaces": true,
   "editor.tabSize": 2,
   "editor.formatOnSave": true,
@@ -9,5 +10,10 @@
     "editor.inlineSuggest.enabled": false
   },
   "editor.fontFamily": "JetBrains Mono, LXGW WenKai GB",
-  "editor.fontLigatures": true
+  "editor.fontLigatures": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "rust-analyzer.checkOnSave": false,
+  "rust-analyzer.initializeStopped": true
 }

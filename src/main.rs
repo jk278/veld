@@ -1,144 +1,190 @@
+use crate::components::home::ACTIVATE_INPUT_TRIGGER;
+use crate::components::layout::NAVIGATE_HOME_TRIGGER;
+use crate::routes::Route;
+use crate::shortcuts::ShortcutManager;
+use crate::theme::init_theme;
 use dioxus::prelude::*;
 use dioxus_desktop::{
-    tao::window::WindowBuilder,
-    use_global_shortcut,
-    use_tray_icon_event_handler,
-    use_tray_menu_event_handler,
-    trayicon::TrayIconEvent,
+  tao::window::WindowBuilder, trayicon::TrayIconEvent, use_global_shortcut,
+  use_tray_icon_event_handler, use_tray_menu_event_handler,
 };
-use crate::components::floating_input::FloatingInput;
-use crate::shortcuts::ShortcutManager;
-use crate::theme::{init_theme};
-use crate::routes::Route;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
-static SHOW_FLOATING_INPUT: OnceLock<Arc<Mutex<bool>>> = OnceLock::new();
 
 fn main() {
-    SHOW_FLOATING_INPUT.set(Arc::new(Mutex::new(false))).unwrap();
+  // Initialize triggers
+  ACTIVATE_INPUT_TRIGGER.set(Arc::new(Mutex::new(0))).unwrap();
+  NAVIGATE_HOME_TRIGGER.set(Arc::new(Mutex::new(0))).unwrap();
 
-    let tray = match crate::tray::SystemTray::new() {
-        Ok(tray) => {
-            println!("System tray initialized successfully");
-            Some(tray)
-        }
-        Err(e) => {
-            println!("Failed to initialize system tray: {:?}", e);
-            None
-        }
-    };
-
-    if let Some(tray) = tray {
-        std::mem::forget(tray);
+  let tray = match crate::tray::SystemTray::new() {
+    Ok(tray) => {
+      println!("System tray initialized successfully");
+      Some(tray)
     }
+    Err(e) => {
+      println!("Failed to initialize system tray: {:?}", e);
+      None
+    }
+  };
 
-    // 隐藏顶部菜单栏，保留右键菜单（可以右键 → Inspect Element 打开开发者工具）
-    // 配置窗口以支持Windows分屏功能
-    let window = WindowBuilder::new()
-        .with_title("Veld - AI Toolkit")
-        .with_resizable(true)  // 确保窗口可调整大小，支持分屏
-        .with_min_inner_size(dioxus_desktop::tao::dpi::LogicalSize::new(400.0, 300.0));  // 最小尺寸约束
+  if let Some(tray) = tray {
+    std::mem::forget(tray);
+  }
 
-    dioxus::LaunchBuilder::new()
-        .with_cfg(dioxus::desktop::Config::new().with_window(window).with_menu(None))
-        .launch(App);
+  // 配置窗口以支持Windows分屏功能
+  let window = WindowBuilder::new()
+    .with_title("Veld - AI Toolkit")
+    .with_resizable(true)
+    .with_min_inner_size(dioxus_desktop::tao::dpi::LogicalSize::new(400.0, 300.0));
+
+  dioxus::LaunchBuilder::new()
+    .with_cfg(
+      dioxus::desktop::Config::new()
+        .with_window(window)
+        .with_menu(None),
+    )
+    .launch(App);
 }
 
 #[component]
 fn App() -> Element {
-    let mut show_floating_input = use_signal(|| false);
+  // Initialize theme and provide context
+  let theme_context = init_theme();
+  provide_context(theme_context.clone());
 
-    // Initialize theme and provide context
-    let theme_context = init_theme();
-    provide_context(theme_context.clone());
+  // Load shortcut from config
+  let activate_shortcut = use_signal(|| {
+    crate::config::AppConfig::load()
+      .map(|c| {
+        c.shortcuts
+          .command_palette
+          .unwrap_or_else(|| "Ctrl+Shift+Space".to_string())
+      })
+      .unwrap_or_else(|_| "Ctrl+Shift+Space".to_string())
+  });
 
-    let _shortcut_handle = use_global_shortcut(
-        "Ctrl+Shift+Space",
-        move |state| {
-            if state == dioxus_desktop::HotKeyState::Pressed {
-                println!("[App] Global hotkey triggered!");
-                show_floating_input.set(true);
-            }
-        },
-    );
+  // Global hotkey handler
+  let _shortcut_handle = use_global_shortcut(activate_shortcut().as_str(), move |state| {
+    if state == dioxus_desktop::HotKeyState::Pressed {
+      println!("[App] Global hotkey triggered!");
 
-    use_tray_icon_event_handler(move |event| {
-        match event {
-            TrayIconEvent::Click { button, .. } => {
-                if *button == dioxus_desktop::trayicon::MouseButton::Left {
-                    show_floating_input.set(true);
-                }
-            }
-            _ => {}
+      // Restore window
+      let window = dioxus::desktop::window();
+      window.set_minimized(false);
+
+      // Trigger navigation (AppLayout will trigger input activation after navigation)
+      if let Some(nav_trigger) = NAVIGATE_HOME_TRIGGER.get() {
+        if let Ok(mut count) = nav_trigger.lock() {
+          *count += 1;
         }
-    });
-
-    use_tray_menu_event_handler(move |event: &dioxus_desktop::trayicon::menu::MenuEvent| {
-        match event.id.as_ref() {
-            "show" => show_floating_input.set(true),
-            "quit" => std::process::exit(0),
-            _ => {}
-        }
-    });
-
-    use_effect(|| {
-        match ShortcutManager::new() {
-            Ok(_) => {
-                println!("Global shortcuts initialized");
-                println!("Press Ctrl+Shift+Space to show floating input");
-            }
-            Err(e) => eprintln!("Failed to initialize shortcuts: {:?}", e),
-        }
-    });
-
-    use_effect(move || {
-        if let Some(global_state) = SHOW_FLOATING_INPUT.get() {
-            if let Ok(mut visible) = global_state.lock() {
-                *visible = show_floating_input();
-            }
-        }
-    });
-
-    rsx! {
-        document::Link { rel: "icon", href: FAVICON }
-        document::Stylesheet { href: TAILWIND_CSS }
-        // 旧的样式表已不再需要，TailwindCSS已包含所有样式
-        // document::Link { rel: "stylesheet", href: GLOBAL_STYLES }
-
-        // Router with layout attribute automatically wraps all routes
-        Router::<Route> {}
-
-        // Global floating input overlay (triggered by hotkey or tray, not default)
-        if show_floating_input() {
-            FloatingInput {
-                is_visible: show_floating_input(),
-                on_close: Callback::new(move |_| show_floating_input.set(false)),
-                on_submit: Callback::new(|text: String| {
-                    println!("Tool selected and submitted: {}", text);
-                    // TODO: Implement AI tool handling
-                }),
-            }
-        }
+      }
     }
+  });
+
+  // Tray icon click handler
+  use_tray_icon_event_handler(move |event| {
+    match event {
+      TrayIconEvent::Click { button, .. } => {
+        if *button == dioxus_desktop::trayicon::MouseButton::Left {
+          println!("[App] Tray icon clicked!");
+
+          let window = dioxus::desktop::window();
+          window.set_minimized(false);
+
+          // Trigger navigation (AppLayout will trigger input activation after navigation)
+          if let Some(nav_trigger) = NAVIGATE_HOME_TRIGGER.get() {
+            if let Ok(mut count) = nav_trigger.lock() {
+              *count += 1;
+            }
+          }
+        }
+      }
+      _ => {}
+    }
+  });
+
+  // Tray menu handler
+  use_tray_menu_event_handler(move |event: &dioxus_desktop::trayicon::menu::MenuEvent| {
+    match event.id.as_ref() {
+      "show" => {
+        println!("[App] Tray menu 'Show' clicked!");
+
+        let window = dioxus::desktop::window();
+        window.set_minimized(false);
+
+        // Trigger navigation (AppLayout will trigger input activation after navigation)
+        if let Some(nav_trigger) = NAVIGATE_HOME_TRIGGER.get() {
+          if let Ok(mut count) = nav_trigger.lock() {
+            *count += 1;
+          }
+        }
+      }
+      "quit" => std::process::exit(0),
+      _ => {}
+    }
+  });
+
+  use_effect(move || match ShortcutManager::new() {
+    Ok(_) => {
+      println!("Global shortcuts initialized");
+      println!("Press {} to activate chat input", activate_shortcut());
+    }
+    Err(e) => eprintln!("Failed to initialize shortcuts: {:?}", e),
+  });
+
+  rsx! {
+    document::Link {
+      rel: "icon",
+      href: FAVICON,
+    }
+    // NOTE: FOUC (Flash of Unstyled Content) on startup
+    //
+    // Known limitations causing FOUC:
+    // 1. Tailwind CSS v4 scanner cannot parse .rs files with rsx syntax (class: "...")
+    //    - Generates full ~57KB tailwind.css instead of optimized subset
+    //    - See: tailwind.config.js for details
+    //
+    // 2. document::Stylesheet loads asynchronously in WebView
+    //    - No onmounted/onload event support (Dioxus limitation)
+    //    - See: https://github.com/DioxusLabs/dioxus/issues/3758
+    //
+    // 3. General CSS loading timing issue in Dioxus Desktop
+    //    - See: https://github.com/DioxusLabs/dioxus/issues/2847
+    //
+    // Current approach: Accept brief FOUC as trade-off
+    // - Adding delays (500ms) is unacceptable for development UX
+    // - Sidebar components use inline styles to prevent most visible FOUC
+    //
+    // Future directions to monitor:
+    // - Official Dioxus CSS loading improvements
+    // - Tailwind v4 .rs file support
+    // - Alternative: safelist, critical CSS extraction, or Tailwind v3
+    document::Stylesheet {
+      href: TAILWIND_CSS,
+    }
+
+    Router::<Route> {
+
+    }
+  }
 }
 
+pub mod chat_history;
 pub mod components;
-pub mod tray;
-pub mod shortcuts;
-pub mod window_manager;
-pub mod theme;
 pub mod config;
+pub mod hooks;
 pub mod routes;
 pub mod services;
-pub mod chat_history;
-pub mod hooks;
+pub mod shortcuts;
+pub mod theme;
+pub mod tray;
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn test_main() {
-        assert_eq!(2 + 2, 4);
-    }
+  #[test]
+  fn test_main() {
+    assert_eq!(2 + 2, 4);
+  }
 }

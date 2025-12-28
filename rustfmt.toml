@@ -1,0 +1,19 @@
+# Rustfmt 配置
+
+# 基础格式
+max_width = 100
+tab_spaces = 2
+hard_tabs = false
+
+# 导入排序
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+
+# 代码简化
+remove_nested_parens = true
+use_field_init_shorthand = true
+merge_derives = true
+
+# Rust 版本
+edition = "2021"

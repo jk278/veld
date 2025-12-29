@@ -41,12 +41,8 @@ dirs = "6.0"
 # Clipboard (arboard replaces the unmaintained clipboard crate)
 arboard = { version = "3.6", features = ["wayland-data-control"] }
 
-# HTTP client for AI APIs (OpenAI, Anthropic, etc.)
-# IMPORTANT: Only needed if NOT using dioxus-fullstack
-# - If using fullstack features: dioxus = { version = "0.7", features = ["fullstack"] }
-#   (fullstack includes reqwest automatically)
-# - For desktop-only apps: must add reqwest manually
-reqwest = { version = "0.12", features = ["json", "stream"] }
+# Multi-AI provider client (OpenAI, Anthropic, DeepSeek, GLM, etc.)
+genai = "0.4"
 
 # Desktop notifications
 notify-rust = "4.11"

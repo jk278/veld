@@ -94,11 +94,31 @@ pub fn use_delete_session_handler(
 /// Create switch provider handler
 pub fn use_switch_provider_handler(
   mut active_provider_id: Signal<String>,
+  mut enabled_providers: Signal<Vec<crate::config::ProviderConfig>>,
+  mut enabled_mcp_servers: Signal<Vec<crate::config::McpServerConfig>>,
 ) -> impl FnMut(String) + Clone {
   move |provider_id: String| {
     if let Ok(mut config) = AppConfig::load() {
       config.set_active_provider(provider_id.clone());
       active_provider_id.set(provider_id);
+
+      // Reload enabled providers and MCP servers to update UI
+      let providers = config
+        .ai
+        .providers
+        .iter()
+        .filter(|p| p.enabled)
+        .cloned()
+        .collect::<Vec<_>>();
+      let mcp_servers = config
+        .mcp
+        .servers
+        .iter()
+        .filter(|s| s.enabled)
+        .cloned()
+        .collect::<Vec<_>>();
+      enabled_providers.set(providers);
+      enabled_mcp_servers.set(mcp_servers);
     }
   }
 }

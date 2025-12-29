@@ -2,7 +2,7 @@
 //! AI 提供商配置标签页
 
 use crate::components::ui::*;
-use crate::config::{AppConfig, ProviderConfig, ProviderType};
+use crate::config::{AppConfig, ProviderConfig};
 use dioxus::prelude::*;
 
 /// AI Providers tab content
@@ -10,20 +10,15 @@ use dioxus::prelude::*;
 pub fn AiProvidersTab(
   mut providers: Signal<Vec<ProviderConfig>>,
   mut editing_provider: Signal<Option<String>>,
-  // Form state signals
   mut form_id: Signal<String>,
   mut form_name: Signal<String>,
-  mut form_provider_type: Signal<ProviderType>,
-  mut form_api_key: Signal<String>,
-  mut form_base_url: Signal<String>,
   mut form_model: Signal<String>,
+  mut form_api_key: Signal<String>,
+  mut form_adapter_type: Signal<Option<String>>,
+  mut form_base_url: Signal<String>,
 ) -> Element {
   let providers_list = providers();
-  let is_adding_mode = move || {
-    editing_provider()
-      .as_ref()
-      .map_or(false, |id| id.is_empty())
-  };
+  let is_adding_mode = move || { editing_provider().as_ref().map_or(false, |id| id.is_empty()) };
 
   rsx! {
     div {
@@ -35,9 +30,9 @@ pub fn AiProvidersTab(
 
       // API compatibility notice
       InfoCard {
-        title: "Anthropic-Compatible API Required".to_string(),
-        message: "All providers must use the Anthropic Claude API format (Messages API).".to_string(),
-        icon: "ℹ️".to_string(),
+        title: "Universal AI Provider Support".to_string(),
+        message: "Supports OpenAI & Anthropic protocols. Choose the adapter type that matches your provider's API.".to_string(),
+        icon: "⚡".to_string(),
         variant: InfoCardVariant::Info,
       }
 
@@ -49,10 +44,10 @@ pub fn AiProvidersTab(
               editing_provider.set(Some(String::new()));
               form_id.set(String::new());
               form_name.set(String::new());
-              form_provider_type.set(ProviderType::Claude);
+              form_model.set("gpt-4o-mini".to_string());
               form_api_key.set(String::new());
+              form_adapter_type.set(Some("openai".to_string()));
               form_base_url.set(String::new());
-              form_model.set(String::new());
           },
           "＋ Add Provider"
         }
@@ -68,18 +63,18 @@ pub fn AiProvidersTab(
             onedit: {
                 let pid = provider.id.clone();
                 let pname = provider.name.clone();
-                let ptype = provider.provider_type.clone();
+                let pmodel = provider.model.clone();
                 let papi_key = provider.api_key.clone().unwrap_or_default();
+                let padapter_type = provider.adapter_type.clone();
                 let pbase_url = provider.base_url.clone().unwrap_or_default();
-                let pmodel = provider.model.clone().unwrap_or_default();
                 move |_| {
                     editing_provider.set(Some(pid.clone()));
                     form_id.set(pid.clone());
                     form_name.set(pname.clone());
-                    form_provider_type.set(ptype.clone());
-                    form_api_key.set(papi_key.clone());
-                    form_base_url.set(pbase_url.clone());
                     form_model.set(pmodel.clone());
+                    form_api_key.set(papi_key.clone());
+                    form_adapter_type.set(padapter_type.clone());
+                    form_base_url.set(pbase_url.clone());
                 }
             },
             ondelete: {
@@ -106,10 +101,10 @@ pub fn AiProvidersTab(
         is_adding_mode: is_adding_mode(),
         form_id: form_id.clone(),
         form_name: form_name.clone(),
-        form_provider_type: form_provider_type.clone(),
-        form_api_key: form_api_key.clone(),
-        form_base_url: form_base_url.clone(),
         form_model: form_model.clone(),
+        form_api_key: form_api_key.clone(),
+        form_adapter_type: form_adapter_type.clone(),
+        form_base_url: form_base_url.clone(),
         onsave: {
             let mut providers = providers.clone();
             move |provider_config| {
@@ -148,10 +143,6 @@ fn ProviderListItem(
             class: "font-mono font-medium text-text-primary",
             "{provider.name}"
           }
-          ProviderBadge {
-            provider_type: format!("{:?}", provider.provider_type),
-            small: true,
-          }
           StatusBadge {
             status: if is_usable { StatusType::Ready } else if provider.enabled { StatusType::Warning } else { StatusType::Disabled },
             text: if is_usable { "".to_string() } else if provider.enabled { "Missing Key".to_string() } else { "".to_string() },
@@ -160,11 +151,9 @@ fn ProviderListItem(
         }
         div {
           class: "flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-secondary",
-          if let Some(model) = &provider.model {
-            span {
-              class: "font-mono text-xs",
-              "Model: {model}"
-            }
+          span {
+            class: "font-mono text-xs",
+            "Model: {provider.model}"
           }
           if let Some(url) = &provider.base_url {
             span {
@@ -199,7 +188,6 @@ fn ProviderListItem(
             class: "w-4 h-4 text-primary bg-bg-surface border-border rounded focus:ring-primary focus:ring-2",
           }
           span {
-
             "Enabled"
           }
         }
@@ -234,10 +222,10 @@ fn ProviderModal(
   is_adding_mode: bool,
   form_id: Signal<String>,
   form_name: Signal<String>,
-  form_provider_type: Signal<ProviderType>,
-  form_api_key: Signal<String>,
-  form_base_url: Signal<String>,
   form_model: Signal<String>,
+  form_api_key: Signal<String>,
+  form_adapter_type: Signal<Option<String>>,
+  form_base_url: Signal<String>,
   onsave: EventHandler<ProviderConfig>,
 ) -> Element {
   rsx! {
@@ -246,11 +234,11 @@ fn ProviderModal(
       onclose,
       max_width: "40rem".to_string(),
       ModalHeader {
-        title: (if is_adding_mode { "Add New Provider" } else { "Edit Provider" }).to_string(),
+        title: (if is_adding_mode { "Add Provider" } else { "Edit Provider" }).to_string(),
         subtitle: (if is_adding_mode {
-            "Configure a new AI provider"
+            "Configure AI provider"
         } else {
-            "Update the provider configuration below"
+            "Update provider settings"
         })
             .to_string(),
         icon: (if is_adding_mode { "➕" } else { "✏️" }).to_string(),
@@ -258,73 +246,135 @@ fn ProviderModal(
         onclose,
       }
       ModalContent {
-
-        FormSection {
-          title: "".to_string(),
-          TextField {
-            label: "Provider Type".to_string(),
-            value: format!("{:?}", form_provider_type()),
-            placeholder: "Claude, Kimi, MiniMax, GLM...".to_string(),
-            oninput: move |e: FormEvent| {
-                let type_str = e.value();
-                form_provider_type
-                    .set(
-                        match type_str.as_str() {
-                            "Claude" => ProviderType::Claude,
-                            "Kimi" => ProviderType::Kimi,
-                            "MiniMax" => ProviderType::MiniMax,
-                            "GLM" => ProviderType::GLM,
-                            "UltraThink" => ProviderType::UltraThink,
-                            _ => ProviderType::Claude,
-                        },
-                    );
-                let ptype = form_provider_type();
-                form_base_url.set(ptype.default_base_url().to_string());
-                form_model.set(ptype.default_model().to_string());
-            },
-          }
-        }
-        TextField {
-          label: "Display Name".to_string(),
-          icon: "📝".to_string(),
-          value: form_name(),
-          placeholder: "My Claude Instance".to_string(),
-          oninput: move |e: FormEvent| form_name.set(e.value()),
-        }
-        TextField {
-          label: "API Key".to_string(),
-          icon: "🔑".to_string(),
-          value: form_api_key(),
-          placeholder: "sk-ant-...".to_string(),
-          helper: "(required for requests)".to_string(),
-          input_type: "password".to_string(),
-          oninput: move |e: FormEvent| form_api_key.set(e.value()),
-        }
-      }
-      AdvancedSection {
-
         div {
-          class: "grid grid-cols-1 sm:grid-cols-2 gap-4",
-          TextField {
-            label: "Base URL".to_string(),
-            icon: "🌐".to_string(),
-            value: form_base_url(),
-            placeholder: "Auto-filled".to_string(),
-            class: "text-text-secondary".to_string(),
-            oninput: move |e: FormEvent| form_base_url.set(e.value()),
+          class: "space-y-3",
+          // Row 1: Protocol + Model
+          div {
+            class: "grid grid-cols-2 gap-3",
+            // Adapter Type (segmented control)
+            div {
+              class: "space-y-1",
+              label {
+                class: "text-xs font-medium text-text-secondary",
+                "Protocol"
+              }
+              // Segmented Control - responsive: horizontal on wide, stacked on narrow
+              div {
+                class: "grid grid-cols-3 gap-1 p-1 bg-bg-secondary rounded-lg border border-border sm:gap-0",
+                // OpenAI
+                button {
+                  class: format!(
+                    "px-2 py-1.5 text-xs font-medium rounded transition-all sm:px-3 sm:py-2 sm:text-sm {}",
+                    if form_adapter_type().as_ref().map_or(false, |t| t == "openai") {
+                      "bg-bg-surface text-text-primary shadow-sm"
+                    } else {
+                      "text-text-secondary hover:text-text-primary"
+                    }
+                  ),
+                  onclick: move |_| form_adapter_type.set(Some("openai".to_string())),
+                  type: "button",
+                  span { class: "hidden sm:inline", "OpenAI" }
+                  span { class: "sm:hidden", "OAI" }
+                }
+                // Anthropic
+                button {
+                  class: format!(
+                    "px-2 py-1.5 text-xs font-medium rounded transition-all sm:px-3 sm:py-2 sm:text-sm {}",
+                    if form_adapter_type().as_ref().map_or(false, |t| t == "anthropic") {
+                      "bg-bg-surface text-text-primary shadow-sm"
+                    } else {
+                      "text-text-secondary hover:text-text-primary"
+                    }
+                  ),
+                  onclick: move |_| form_adapter_type.set(Some("anthropic".to_string())),
+                  type: "button",
+                  span { class: "hidden sm:inline", "Anthropic" }
+                  span { class: "sm:hidden", "Anth" }
+                }
+                // Auto
+                button {
+                  class: format!(
+                    "px-2 py-1.5 text-xs font-medium rounded transition-all sm:px-3 sm:py-2 sm:text-sm {}",
+                    if form_adapter_type().is_none() {
+                      "bg-bg-surface text-text-primary shadow-sm"
+                    } else {
+                      "text-text-secondary hover:text-text-primary"
+                    }
+                  ),
+                  onclick: move |_| form_adapter_type.set(None),
+                  type: "button",
+                  "Auto"
+                }
+              }
+            }
+            // Model Name
+            div {
+              class: "space-y-1",
+              label {
+                class: "text-xs font-medium text-text-secondary",
+                "Model"
+              }
+              input {
+                r#type: "text",
+                value: form_model(),
+                placeholder: "gpt-4o-mini",
+                class: "w-full px-3 py-2 bg-bg-surface border border-border rounded-md text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary",
+                oninput: move |e: FormEvent| form_model.set(e.value()),
+              }
+            }
           }
-          TextField {
-            label: "Model".to_string(),
-            icon: "⚙️".to_string(),
-            value: form_model(),
-            placeholder: "Auto-filled".to_string(),
-            class: "text-text-secondary".to_string(),
-            oninput: move |e: FormEvent| form_model.set(e.value()),
+          // Row 2: Name + Key
+          div {
+            class: "grid grid-cols-2 gap-3",
+            // Display Name
+            div {
+              class: "space-y-1",
+              label {
+                class: "text-xs font-medium text-text-secondary",
+                "Display Name"
+              }
+              input {
+                r#type: "text",
+                value: form_name(),
+                placeholder: "My AI Provider",
+                class: "w-full px-3 py-2 bg-bg-surface border border-border rounded-md text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary",
+                oninput: move |e: FormEvent| form_name.set(e.value()),
+              }
+            }
+            // API Key
+            div {
+              class: "space-y-1",
+              label {
+                class: "text-xs font-medium text-text-secondary",
+                "API Key"
+              }
+              input {
+                r#type: "password",
+                value: form_api_key(),
+                placeholder: "sk-...",
+                class: "w-full px-3 py-2 bg-bg-surface border border-border rounded-md text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary",
+                oninput: move |e: FormEvent| form_api_key.set(e.value()),
+              }
+            }
+          }
+          // Row 3: Base URL (optional)
+          div {
+            class: "space-y-1",
+            label {
+              class: "text-xs font-medium text-text-secondary",
+              "Base URL (optional)"
+            }
+            input {
+              r#type: "text",
+              value: form_base_url(),
+              placeholder: "https://api.example.com/v1",
+              class: "w-full px-3 py-2 bg-bg-surface border border-border rounded-md text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary",
+              oninput: move |e: FormEvent| form_base_url.set(e.value()),
+            }
           }
         }
       }
       ModalFooter {
-
         CancelButton {
           onclick: onclose,
           "Cancel"
@@ -335,26 +385,22 @@ fn ProviderModal(
                   id: if !form_id().is_empty() {
                       form_id()
                   } else {
-                      format!("{:?}", form_provider_type()).to_lowercase()
+                      form_model().replace('/', "-").to_lowercase()
                   },
                   name: if form_name().is_empty() {
-                      format!("{:?}", form_provider_type())
+                      form_model().clone()
                   } else {
                       form_name()
                   },
-                  provider_type: form_provider_type(),
+                  model: form_model(),
                   api_key: if form_api_key().is_empty() { None } else { Some(form_api_key()) },
-                  base_url: if form_base_url().is_empty() {
-                      None
-                  } else {
-                      Some(form_base_url())
-                  },
-                  model: if form_model().is_empty() { None } else { Some(form_model()) },
+                  adapter_type: form_adapter_type(),
+                  base_url: if form_base_url().is_empty() { None } else { Some(form_base_url()) },
                   enabled: true,
               };
               onsave.call(provider);
           },
-          "💾 Save Provider"
+          "Save"
         }
       }
     }

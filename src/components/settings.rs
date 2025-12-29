@@ -5,7 +5,7 @@ use crate::components::settings_tabs::{
   AiProvidersTab, AppearanceTab, McpServersTab, QuickToolsTab, ShortcutsTab,
 };
 use crate::components::ui::*;
-use crate::config::{AppConfig, McpServerConfig, ProviderConfig, ProviderType};
+use crate::config::{AppConfig, McpServerConfig, ProviderConfig};
 use crate::hooks::use_window_size;
 use dioxus::prelude::*;
 
@@ -100,10 +100,10 @@ pub fn Settings() -> Element {
   let editing_provider = use_signal(|| Option::<String>::None);
   let form_id = use_signal(|| String::new());
   let form_name = use_signal(|| String::new());
-  let form_provider_type = use_signal(|| ProviderType::Claude);
-  let form_api_key = use_signal(|| String::new());
-  let form_base_url = use_signal(|| String::new());
   let form_model = use_signal(|| String::new());
+  let form_api_key = use_signal(|| String::new());
+  let form_adapter_type = use_signal(|| Option::<String>::None);
+  let form_base_url = use_signal(|| String::new());
 
   // Form states for MCP servers
   let editing_server = use_signal(|| Option::<String>::None);
@@ -214,10 +214,10 @@ pub fn Settings() -> Element {
                   editing_provider.clone(),
                   form_id.clone(),
                   form_name.clone(),
-                  form_provider_type.clone(),
-                  form_api_key.clone(),
-                  form_base_url.clone(),
                   form_model.clone(),
+                  form_api_key.clone(),
+                  form_adapter_type.clone(),
+                  form_base_url.clone(),
                   editing_server.clone(),
                   server_form_name.clone(),
                   server_form_command.clone(),
@@ -239,10 +239,10 @@ fn render_active_tab(
   editing_provider: Signal<Option<String>>,
   form_id: Signal<String>,
   form_name: Signal<String>,
-  form_provider_type: Signal<ProviderType>,
-  form_api_key: Signal<String>,
-  form_base_url: Signal<String>,
   form_model: Signal<String>,
+  form_api_key: Signal<String>,
+  form_adapter_type: Signal<Option<String>>,
+  form_base_url: Signal<String>,
   editing_server: Signal<Option<String>>,
   server_form_name: Signal<String>,
   server_form_command: Signal<String>,
@@ -255,10 +255,10 @@ fn render_active_tab(
         editing_provider: editing_provider.clone(),
         form_id: form_id.clone(),
         form_name: form_name.clone(),
-        form_provider_type: form_provider_type.clone(),
-        form_api_key: form_api_key.clone(),
-        form_base_url: form_base_url.clone(),
         form_model: form_model.clone(),
+        form_api_key: form_api_key.clone(),
+        form_adapter_type: form_adapter_type.clone(),
+        form_base_url: form_base_url.clone(),
       }
     },
     SettingsTab::MCP => rsx! {

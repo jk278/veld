@@ -5,7 +5,7 @@ use crate::config::AppConfig;
 use crate::services::ai_client::{AiClient, ChatMessage};
 use crate::services::mcp_client::{McpClient, McpTool};
 use serde_json::Value;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 /// Agent step for progressive rendering
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -56,13 +56,16 @@ pub async fn chat_with_tools(
   messages: Vec<ChatMessage>,
   tx: mpsc::UnboundedSender<AgentStep>,
 ) -> Result<String> {
+  // Create AI client
+  let client = AiClient::new().map_err(|e| AgentError::Ai(e.to_string()))?;
+
   // Load enabled MCP servers
   let config = AppConfig::load().map_err(|e| AgentError::McpClient(e.to_string()))?;
   let enabled_servers = config.get_enabled_mcps();
 
   if enabled_servers.is_empty() {
     // No MCP servers, just do normal chat
-    let response = AiClient::chat_completion(messages)
+    let response = client.chat_completion(messages)
       .await
       .map_err(|e| AgentError::Ai(e.to_string()))?;
     let _ = tx.send(AgentStep::Final(response.clone()));
@@ -75,7 +78,7 @@ pub async fn chat_with_tools(
     enabled_servers.len()
   )));
 
-  let (sync_tx, sync_rx) = std::sync::mpsc::channel();
+  let (sync_tx, sync_rx) = oneshot::channel();
   let server_configs: Vec<_> = enabled_servers
     .iter()
     .map(|s| {
@@ -88,7 +91,9 @@ pub async fn chat_with_tools(
     })
     .collect();
 
-  std::thread::spawn(move || {
+  // Use spawn_blocking to run blocking MCP operations in a separate thread
+  // This avoids blocking the async runtime and integrates properly with Dioxus
+  tokio::task::spawn_blocking(move || {
     let mut results: Vec<(String, McpClient, Vec<McpTool>)> = Vec::new();
 
     for (name, command, args, env) in server_configs {
@@ -113,13 +118,13 @@ pub async fn chat_with_tools(
   });
 
   // Wait with timeout (90 seconds for npx to download packages on first run)
-  let results = match sync_rx.recv_timeout(std::time::Duration::from_secs(90)) {
-    Ok(r) => r,
-    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+  let results = match tokio::time::timeout(std::time::Duration::from_secs(90), sync_rx).await {
+    Ok(Ok(r)) => r,
+    Ok(Err(_)) => {
       let _ = tx.send(AgentStep::Connecting(
-        "连接超时，切换到普通对话".to_string(),
+        "连接失败，切换到普通对话".to_string(),
       ));
-      let response = AiClient::chat_completion(messages)
+      let response = client.chat_completion(messages)
         .await
         .map_err(|e| AgentError::Ai(e.to_string()))?;
       let _ = tx.send(AgentStep::Final(response.clone()));
@@ -127,9 +132,9 @@ pub async fn chat_with_tools(
     }
     Err(_) => {
       let _ = tx.send(AgentStep::Connecting(
-        "连接失败，切换到普通对话".to_string(),
+        "连接超时，切换到普通对话".to_string(),
       ));
-      let response = AiClient::chat_completion(messages)
+      let response = client.chat_completion(messages)
         .await
         .map_err(|e| AgentError::Ai(e.to_string()))?;
       let _ = tx.send(AgentStep::Final(response.clone()));
@@ -154,7 +159,7 @@ pub async fn chat_with_tools(
     let _ = tx.send(AgentStep::Connecting(
       "没有加载到工具，切换到普通对话".to_string(),
     ));
-    let response = AiClient::chat_completion(messages)
+    let response = client.chat_completion(messages)
       .await
       .map_err(|e| AgentError::Ai(e.to_string()))?;
     let _ = tx.send(AgentStep::Final(response.clone()));
@@ -196,7 +201,7 @@ pub async fn chat_with_tools(
 
   for iteration in 0..max_iterations {
     // Get AI response
-    let response = AiClient::chat_completion(current_messages.clone())
+    let response = client.chat_completion(current_messages.clone())
       .await
       .map_err(|e| {
         eprintln!("[MCP] AI error: {}", e);

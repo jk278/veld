@@ -115,6 +115,34 @@ pub fn Home() -> Element {
   let tx_with_prefix =
     use_chat_coroutine_with_prefix(messages.clone(), chat_history.clone(), is_agent_running);
 
+  // Filter enabled providers and MCP servers (reactive - updates on config change)
+  let enabled_providers = use_signal(|| {
+    AppConfig::load()
+      .ok()
+      .map(|c| {
+        c.ai
+          .providers
+          .iter()
+          .filter(|p| p.enabled)
+          .cloned()
+          .collect::<Vec<_>>()
+      })
+      .unwrap_or_default()
+  });
+  let enabled_mcp_servers = use_signal(|| {
+    AppConfig::load()
+      .ok()
+      .map(|c| {
+        c.mcp
+          .servers
+          .iter()
+          .filter(|s| s.enabled)
+          .cloned()
+          .collect::<Vec<_>>()
+      })
+      .unwrap_or_default()
+  });
+
   // Create handlers
   let new_chat_handler = use_new_chat_handler(
     chat_history.clone(),
@@ -126,7 +154,11 @@ pub fn Home() -> Element {
 
   let delete_session = use_delete_session_handler(chat_history.clone());
 
-  let switch_provider = use_switch_provider_handler(active_provider_id.clone());
+  let switch_provider = use_switch_provider_handler(
+    active_provider_id.clone(),
+    enabled_providers.clone(),
+    enabled_mcp_servers.clone(),
+  );
 
   let send_message_handler = use_send_message_handler(input_text.clone(), tx.clone());
 
@@ -143,31 +175,6 @@ pub fn Home() -> Element {
     let mut handler = send_message_handler.clone();
     move |_: MouseEvent| handler()
   };
-
-  // Filter enabled providers and MCP servers
-  let config = AppConfig::load().ok();
-  let enabled_providers = config
-    .as_ref()
-    .map(|c| {
-      c.ai
-        .providers
-        .iter()
-        .filter(|p| p.enabled)
-        .cloned()
-        .collect::<Vec<_>>()
-    })
-    .unwrap_or_default();
-  let enabled_mcp_servers = config
-    .as_ref()
-    .map(|c| {
-      c.mcp
-        .servers
-        .iter()
-        .filter(|s| s.enabled)
-        .cloned()
-        .collect::<Vec<_>>()
-    })
-    .unwrap_or_default();
 
   // Get current provider info for rendering
   let (_active_provider_name, has_api_key) = get_active_provider_info();
@@ -258,8 +265,8 @@ pub fn Home() -> Element {
         ChatHeader {
           current_session_title: current_session_title(),
           active_provider_id: active_provider_id(),
-          enabled_providers: enabled_providers.clone(),
-          enabled_mcp_servers: enabled_mcp_servers.clone(),
+          enabled_providers: enabled_providers(),
+          enabled_mcp_servers: enabled_mcp_servers(),
           sidebar_collapsed: sidebar_collapsed(),
           on_toggle_sidebar: move |_| sidebar_collapsed.set(!sidebar_collapsed()),
           on_new_chat: new_chat_for_header,

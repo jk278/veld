@@ -66,43 +66,15 @@ pub struct McpServerConfig {
 pub struct ProviderConfig {
   pub id: String,
   pub name: String,
-  pub provider_type: ProviderType,
+  /// Model name (e.g., "gpt-4o-mini", "claude-3-5-sonnet", "glm-4-plus")
+  pub model: String,
   pub api_key: Option<String>,
+  /// Adapter type: "openai" (OpenAI-compatible) or "anthropic" (Anthropic-compatible)
+  /// If None, genai will auto-detect from model name
+  pub adapter_type: Option<String>,
+  /// Optional: Custom endpoint URL (overrides default adapter endpoint)
   pub base_url: Option<String>,
-  pub model: Option<String>,
   pub enabled: bool,
-}
-
-/// AI provider types
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ProviderType {
-  Claude,
-  Kimi,
-  MiniMax,
-  GLM,
-  UltraThink,
-}
-
-impl ProviderType {
-  pub fn default_base_url(&self) -> &'static str {
-    match self {
-      ProviderType::Claude => "https://api.anthropic.com",
-      ProviderType::Kimi => "https://api.kimi.com/coding",
-      ProviderType::MiniMax => "https://api.minimaxi.com/anthropic",
-      ProviderType::GLM => "https://open.bigmodel.cn/api/anthropic",
-      ProviderType::UltraThink => "https://api.ultrathink.ai",
-    }
-  }
-
-  pub fn default_model(&self) -> &'static str {
-    match self {
-      ProviderType::Claude => "claude-sonnet-4-20250514",
-      ProviderType::Kimi => "kimi-for-coding",
-      ProviderType::MiniMax => "MiniMax-M2.1",
-      ProviderType::GLM => "GLM-4.7",
-      ProviderType::UltraThink => "ultrathink-v1",
-    }
-  }
 }
 
 /// Shortcut configuration
@@ -256,47 +228,38 @@ impl AppConfig {
         providers: vec![
           ProviderConfig {
             id: "claude".to_string(),
-            name: "Claude Code".to_string(),
-            provider_type: ProviderType::Claude,
+            name: "Claude".to_string(),
+            model: "claude-3-5-sonnet-20241022".to_string(),
             api_key: None,
-            base_url: Some(ProviderType::Claude.default_base_url().to_string()),
-            model: Some(ProviderType::Claude.default_model().to_string()),
+            adapter_type: Some("anthropic".to_string()),
+            base_url: None,
             enabled: true,
           },
           ProviderConfig {
-            id: "kimi".to_string(),
-            name: "Kimi Coding".to_string(),
-            provider_type: ProviderType::Kimi,
+            id: "deepseek".to_string(),
+            name: "DeepSeek".to_string(),
+            model: "deepseek-chat".to_string(),
             api_key: None,
-            base_url: Some(ProviderType::Kimi.default_base_url().to_string()),
-            model: Some(ProviderType::Kimi.default_model().to_string()),
-            enabled: true,
-          },
-          ProviderConfig {
-            id: "minimax".to_string(),
-            name: "MiniMax Coding".to_string(),
-            provider_type: ProviderType::MiniMax,
-            api_key: None,
-            base_url: Some(ProviderType::MiniMax.default_base_url().to_string()),
-            model: Some(ProviderType::MiniMax.default_model().to_string()),
+            adapter_type: Some("openai".to_string()),
+            base_url: None,
             enabled: true,
           },
           ProviderConfig {
             id: "glm".to_string(),
-            name: "GLM Coding".to_string(),
-            provider_type: ProviderType::GLM,
+            name: "GLM (智谱)".to_string(),
+            model: "glm-4-plus".to_string(),
             api_key: None,
-            base_url: Some(ProviderType::GLM.default_base_url().to_string()),
-            model: Some(ProviderType::GLM.default_model().to_string()),
+            adapter_type: Some("anthropic".to_string()),
+            base_url: Some("https://open.bigmodel.cn/api/paas/v4".to_string()),
             enabled: true,
           },
           ProviderConfig {
-            id: "ultrathink".to_string(),
-            name: "UltraThink".to_string(),
-            provider_type: ProviderType::UltraThink,
+            id: "minimax".to_string(),
+            name: "MiniMax".to_string(),
+            model: "MiniMax-M2.1".to_string(),
             api_key: None,
-            base_url: Some(ProviderType::UltraThink.default_base_url().to_string()),
-            model: Some(ProviderType::UltraThink.default_model().to_string()),
+            adapter_type: Some("anthropic".to_string()),
+            base_url: Some("https://api.minimax.chat/v1".to_string()),
             enabled: true,
           },
         ],

@@ -6,8 +6,7 @@ use crate::theme::init_theme;
 use dioxus::prelude::*;
 use dioxus_desktop::{
   tao::window::{Icon, WindowBuilder}, trayicon::TrayIconEvent,
-  use_global_shortcut, use_tray_icon_event_handler,
-  use_tray_menu_event_handler,
+  use_global_shortcut, use_muda_event_handler, use_tray_icon_event_handler,
 };
 use std::sync::{Arc, Mutex};
 
@@ -115,8 +114,9 @@ fn App() -> Element {
     }
   });
 
-  // Tray menu handler
-  use_tray_menu_event_handler(move |event: &dioxus_desktop::trayicon::menu::MenuEvent| {
+  // Tray menu handler - use_muda_event_handler is the correct API in 0.7.2
+  use_muda_event_handler(move |event: &dioxus_desktop::muda::MenuEvent| {
+    println!("[App] Menu event: id={:?}", event.id);
     match event.id.as_ref() {
       "show" => {
         println!("[App] Tray menu 'Show' clicked!");

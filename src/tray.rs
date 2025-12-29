@@ -6,13 +6,6 @@ use dioxus_desktop::trayicon::{
   Icon, TrayIcon, TrayIconAttributes,
 };
 
-/// Tray event types
-#[derive(Debug, Clone)]
-pub enum TrayEvent {
-  ShowFloatingInput,
-  Exit,
-}
-
 /// System tray manager
 #[derive(Clone)]
 pub struct SystemTray {
@@ -35,12 +28,14 @@ impl SystemTray {
     // Add cross-platform compatible menu items with IDs
     let show_item = MenuItemBuilder::new()
       .id(MenuId::new("show"))
-      .text("Show Floating Input")
+      .text("Show")
+      .enabled(true)
       .build();
     let separator = PredefinedMenuItem::separator();
     let close_item = MenuItemBuilder::new()
       .id(MenuId::new("quit"))
       .text("Exit")
+      .enabled(true)
       .build();
 
     menu.append_items(&[&show_item, &separator, &close_item])?;

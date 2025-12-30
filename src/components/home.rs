@@ -5,6 +5,7 @@ use crate::chat_history::ChatHistoryData;
 use crate::components::chat::message_list::ChatMessage;
 use crate::components::chat::*;
 use crate::config::AppConfig;
+use crate::hooks::{RESPONSIVE_BREAKPOINT, use_window_size};
 use crate::theme::use_theme;
 use dioxus::prelude::*;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -19,6 +20,7 @@ pub use crate::components::chat::UiSession;
 #[component]
 pub fn Home() -> Element {
   let _theme_mode = use_theme();
+  let window_width = use_window_size();
 
   // Chat messages state
   let messages = use_signal(Vec::<ChatMessage>::new);
@@ -29,6 +31,7 @@ pub fn Home() -> Element {
   let last_message_count = use_signal(|| 0);
 
   // Sidebar collapse state (persisted to config file)
+  // NOTE: This is user-controlled state, NOT auto-collapsed on window resize
   // Default to collapsed to match CSS default and avoid flash
   let mut sidebar_collapsed = use_signal(|| {
     AppConfig::load()
@@ -229,7 +232,15 @@ pub fn Home() -> Element {
         on_switch_session: switch_session,
         on_delete_session: delete_session,
         on_close: sidebar_close_handler,
-        on_auto_collapse: move |_| {},  // No auto-collapse, let user see breakpoint
+        on_auto_collapse: {
+          let mut collapsed = sidebar_collapsed.clone();
+          let width = window_width.clone();
+          move |_| {
+            if width() < RESPONSIVE_BREAKPOINT {
+              collapsed.set(true);
+            }
+          }
+        },
       }
 
       // Main chat area (full width)

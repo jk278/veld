@@ -550,6 +550,18 @@
     scrollbar-color: var(--color-text-muted) transparent;
   }
 
+  /* Sidebar drag handle for resize */
+  .sidebar-drag-handle {
+    @apply absolute top-0 right-0 bottom-0 w-1 cursor-col-resize;
+    background: transparent;
+    transition: background 150ms ease;
+    z-index: 10;
+  }
+
+  .sidebar-drag-handle:hover {
+    background: var(--color-primary);
+  }
+
   /* Drawer sidebar - responsive: absolute on narrow, static on wide */
   .drawer-sidebar {
     @apply absolute top-0 left-0 h-full bg-bg-surface border-r border-border z-50 flex flex-col;

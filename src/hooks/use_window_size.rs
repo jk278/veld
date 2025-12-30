@@ -71,6 +71,90 @@ pub fn use_window_save() {
   });
 }
 
+/// Sidebar resize with drag handle
+/// Returns (width_signal, is_resizing, start_resize_callback)
+///
+/// NOTE: Uses JavaScript global events instead of `use_wry_event_handler` because:
+/// - Dioxus 0.7 lacks official gesture/drag support
+/// - Desktop API has limited mouse event capture (mousemove/mouseup issues)
+/// - Third-party `dioxus-use-gesture` is unmaintained
+/// - JS provides reliable cross-platform event handling
+pub fn use_sidebar_resize() -> (Signal<u32>, Signal<bool>, Callback<()>) {
+  let sidebar_width = use_signal(|| {
+    AppConfig::load()
+      .map(|c| c.ui.sidebar_width)
+      .unwrap_or(280)
+  });
+
+  let is_resizing = use_signal(|| false);
+
+  // Apply width to CSS variable when changed
+  use_effect(move || {
+    let width = sidebar_width();
+    let _ = dioxus::document::eval(&format!(
+      "document.documentElement.style.setProperty('--sidebar-width', '{width}px');"
+    ));
+  });
+
+  // Start drag with JavaScript global events
+  // Range: 180-500px (button min width ~140px + padding; max to avoid squeezing main chat area)
+  let start_resize = Callback::new({
+    let mut is_resizing = is_resizing.clone();
+    let current_width = sidebar_width.clone();
+    move |()| {
+      is_resizing.set(true);
+      let min_width = (current_width() - 120).max(180);
+      let max_width = (current_width() + 120).min(500);
+      let _ = dioxus::document::eval(&format!(
+        r#"
+          const minWidth = {min_width};
+          const maxWidth = {max_width};
+          document.documentElement.style.setProperty('user-select', 'none');
+          window.__sidebarDragHandler = (e) => {{
+            const newWidth = Math.max(minWidth, Math.min(maxWidth, e.clientX));
+            document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+            window.__sidebarDragWidth = newWidth;
+          }};
+          window.__sidebarDragEnd = () => {{
+            window.removeEventListener('mousemove', window.__sidebarDragHandler);
+            window.removeEventListener('mouseup', window.__sidebarDragEnd);
+            document.documentElement.style.removeProperty('user-select');
+          }};
+          window.addEventListener('mousemove', window.__sidebarDragHandler);
+          window.addEventListener('mouseup', window.__sidebarDragEnd);
+        "#,
+      ));
+    }
+  });
+
+  // Poll for width changes during drag and save on end
+  use_resource({
+    let mut sidebar_width = sidebar_width.clone();
+    move || {
+      async move {
+        let mut last_saved = None;
+        loop {
+          tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+          if is_resizing() {
+            if let Ok(width) = dioxus::document::eval("window.__sidebarDragWidth || null").await {
+              if let Some(w) = width.as_u64() {
+                sidebar_width.set(w as u32);
+                last_saved = Some(w as u32);
+              }
+            }
+          } else if let Some(to_save) = last_saved.take() {
+            if let Ok(mut config) = AppConfig::load() {
+              config.update_sidebar_width(to_save);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  (sidebar_width, is_resizing, start_resize)
+}
+
 /// Check if current window width is narrow screen (< RESPONSIVE_BREAKPOINT)
 pub fn use_is_narrow_screen() -> bool {
   use_window_size()() < RESPONSIVE_BREAKPOINT

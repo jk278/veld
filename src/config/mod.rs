@@ -88,6 +88,7 @@ pub struct ShortcutConfig {
 pub struct UiConfig {
   pub sidebar_collapsed: bool,
   pub zoom_level: f64,  // 0.5 ~ 2.0, default 1.0
+  pub sidebar_width: u32,  // Sidebar width in pixels (200-600)
   pub window_width: Option<u32>,  // Persisted window width
   pub window_height: Option<u32>, // Persisted window height
 }
@@ -124,8 +125,9 @@ impl Default for UiConfig {
     UiConfig {
       sidebar_collapsed: false,
       zoom_level: 1.0,
-      window_width: None,  // Use system default
-      window_height: None, // Use system default
+      sidebar_width: 280,
+      window_width: None,
+      window_height: None,
     }
   }
 }
@@ -447,6 +449,17 @@ impl AppConfig {
     std::thread::spawn(move || {
       if let Err(e) = config.save() {
         eprintln!("[Config] Failed to save window size: {}", e);
+      }
+    });
+  }
+
+  /// Update sidebar width (clamped to 200-600px)
+  pub fn update_sidebar_width(&mut self, width: u32) {
+    self.ui.sidebar_width = width.clamp(200, 600);
+    let config = self.clone();
+    std::thread::spawn(move || {
+      if let Err(e) = config.save() {
+        eprintln!("[Config] Failed to save sidebar width: {}", e);
       }
     });
   }

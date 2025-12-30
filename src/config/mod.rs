@@ -88,6 +88,8 @@ pub struct ShortcutConfig {
 pub struct UiConfig {
   pub sidebar_collapsed: bool,
   pub zoom_level: f64,  // 0.5 ~ 2.0, default 1.0
+  pub window_width: Option<u32>,  // Persisted window width
+  pub window_height: Option<u32>, // Persisted window height
 }
 
 /// Quick Tools (presets) configuration
@@ -122,6 +124,8 @@ impl Default for UiConfig {
     UiConfig {
       sidebar_collapsed: false,
       zoom_level: 1.0,
+      window_width: None,  // Use system default
+      window_height: None, // Use system default
     }
   }
 }
@@ -431,6 +435,18 @@ impl AppConfig {
     std::thread::spawn(move || {
       if let Err(e) = config.save() {
         eprintln!("[Config] Failed to save UI config: {}", e);
+      }
+    });
+  }
+
+  /// Update window size (width x height in pixels)
+  pub fn update_window_size(&mut self, width: u32, height: u32) {
+    self.ui.window_width = Some(width);
+    self.ui.window_height = Some(height);
+    let config = self.clone();
+    std::thread::spawn(move || {
+      if let Err(e) = config.save() {
+        eprintln!("[Config] Failed to save window size: {}", e);
       }
     });
   }

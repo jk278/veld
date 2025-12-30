@@ -5,7 +5,6 @@ use crate::chat_history::ChatHistoryData;
 use crate::components::chat::message_list::ChatMessage;
 use crate::components::chat::*;
 use crate::config::AppConfig;
-use crate::hooks::{RESPONSIVE_BREAKPOINT, use_window_size};
 use crate::theme::use_theme;
 use dioxus::prelude::*;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -29,9 +28,6 @@ pub fn Home() -> Element {
   let scroll_container_id = "chat-messages-container";
   let last_message_count = use_signal(|| 0);
 
-  // Window width for responsive behavior
-  let window_width = use_window_size();
-
   // Sidebar collapse state (persisted to config file)
   // Default to collapsed to match CSS default and avoid flash
   let mut sidebar_collapsed = use_signal(|| {
@@ -48,23 +44,6 @@ pub fn Home() -> Element {
     let collapsed = sidebar_collapsed();
     if let Ok(mut config) = AppConfig::load() {
       config.update_sidebar_collapsed(collapsed);
-    }
-  });
-
-  // Auto-collapse sidebar on narrow screens when window resizes
-  let mut collapsed_clone = sidebar_collapsed.clone();
-  dioxus_desktop::use_wry_event_handler(move |event, _| {
-    use dioxus_desktop::tao::event::{Event, WindowEvent};
-    if let Event::WindowEvent { event, .. } = event {
-      if let WindowEvent::Resized(physical_size) = event {
-        let window = dioxus_desktop::window();
-        let scale = window.scale_factor();
-        let logical_width = physical_size.width as f64 / scale;
-        // Auto-collapse on narrow, but don't auto-expand (preserve user preference)
-        if logical_width < RESPONSIVE_BREAKPOINT && !collapsed_clone() {
-          collapsed_clone.set(true);
-        }
-      }
     }
   });
 
@@ -203,17 +182,6 @@ pub fn Home() -> Element {
     move |_| collapsed.set(true)
   };
 
-  // Auto-collapse handler (narrow screens only)
-  let mut auto_collapse_handler = {
-    let mut collapsed = sidebar_collapsed.clone();
-    let width = window_width.clone();
-    move |_| {
-      if width() < RESPONSIVE_BREAKPOINT {
-        collapsed.set(true);
-      }
-    }
-  };
-
   // Monitor global trigger for activating input (from hotkey/tray)
   let mut last_processed = use_signal(|| {
     ACTIVATE_INPUT_TRIGGER
@@ -261,7 +229,7 @@ pub fn Home() -> Element {
         on_switch_session: switch_session,
         on_delete_session: delete_session,
         on_close: sidebar_close_handler,
-        on_auto_collapse: move |_| auto_collapse_handler(()),
+        on_auto_collapse: move |_| {},  // No auto-collapse, let user see breakpoint
       }
 
       // Main chat area (full width)

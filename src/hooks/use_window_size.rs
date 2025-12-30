@@ -1,15 +1,25 @@
 //! Window size hook for responsive behavior
 //! 窗口尺寸 Hook - 用于响应式布局
 
+use crate::config::AppConfig;
 use dioxus::prelude::*;
 
 /// Responsive breakpoint: narrow screen threshold in pixels
 /// 响应式断点：窄屏阈值（像素）
 pub const RESPONSIVE_BREAKPOINT: f64 = 768.0;
 
-/// Window size state - tracks logical window width
+/// Minimum window size (width, height) in pixels
+/// 最小窗口尺寸（用于硬约束和保存过滤）
+pub const MIN_WINDOW_SIZE: (u32, u32) = (400, 500);
+
+/// Default window size (width, height) in pixels
+/// 默认窗口尺寸（无配置时使用）
+pub const DEFAULT_WINDOW_SIZE: (u32, u32) = (1200, 800);
+
+/// Get current window width as reactive signal
+/// NOTE: Returns actual window width, not RESPONSIVE_BREAKPOINT (which is UI threshold)
 pub fn use_window_size() -> Signal<f64> {
-  let window_width = use_signal(|| RESPONSIVE_BREAKPOINT);
+  let window_width = use_signal(|| 0.0);  // Placeholder, updated immediately by use_effect
   let mut width = window_width.clone();
 
   // Get initial window size
@@ -38,6 +48,27 @@ pub fn use_window_size() -> Signal<f64> {
   });
 
   window_width
+}
+
+/// Persist window size across app restarts
+pub fn use_window_save() {
+  use_resource(move || {
+    async move {
+      let mut last_size = None;
+      loop {
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        let size = dioxus_desktop::window().inner_size();
+        let current = (size.width, size.height);
+
+        if last_size != Some(current) && size.width >= MIN_WINDOW_SIZE.0 && size.height >= MIN_WINDOW_SIZE.1 {
+          if let Ok(mut config) = AppConfig::load() {
+            config.update_window_size(size.width, size.height);
+            last_size = Some(current);
+          }
+        }
+      }
+    }
+  });
 }
 
 /// Check if current window width is narrow screen (< RESPONSIVE_BREAKPOINT)

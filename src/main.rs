@@ -41,9 +41,10 @@ fn main() {
     std::mem::forget(tray);
   }
 
-  // 配置窗口以支持Windows分屏功能
+  // 配置窗口：隐藏原生标题栏，使用自定义标题栏
   let window = WindowBuilder::new()
     .with_title("Veld - AI Toolkit")
+    .with_decorations(false)  // Hide native titlebar for custom title bar
     .with_resizable(true)
     .with_min_inner_size(dioxus_desktop::tao::dpi::LogicalSize::new(400.0, 300.0))
     .with_window_icon(load_window_icon());

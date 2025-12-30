@@ -6,7 +6,7 @@ use crate::components::{
 };
 use dioxus::prelude::*;
 
-#[derive(Clone, Routable)]
+#[derive(Clone, PartialEq, Routable)]
 #[rustfmt::skip]
 pub enum Route {
   #[layout(AppLayout)]

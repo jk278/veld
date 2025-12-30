@@ -8,6 +8,7 @@ pub mod markdown;
 pub mod result_viewer;
 pub mod settings;
 pub mod settings_tabs;
+pub mod title_bar;
 
 // UI component library
 pub mod ui;

@@ -2,6 +2,7 @@
 //! 提供页面间的统一布局和导航
 
 use crate::components::home::ACTIVATE_INPUT_TRIGGER;
+use crate::components::title_bar::TitleBar;
 use crate::routes::Route;
 use crate::theme::use_theme;
 use dioxus::prelude::*;
@@ -66,32 +67,8 @@ pub fn AppLayout() -> Element {
       id: "app-layout",
       class: "flex flex-col h-screen bg-bg-primary text-text-primary font-sans overflow-hidden",
 
-      // Navigation header (fixed at top)
-      nav {
-        class: "flex items-center gap-4 px-4 py-2 bg-bg-secondary shrink-0",
-
-        Link {
-          to: Route::Home,
-          class: "text-text-secondary hover:text-text-primary px-3 py-0.5 rounded-md transition-all duration-200 font-medium",
-          "Chat"
-        }
-
-        div {
-          class: "flex-1",
-        }
-
-        Link {
-          to: Route::Settings,
-          class: "text-text-secondary hover:text-text-primary px-3 py-0.5 rounded-md transition-all duration-200",
-          "Settings"
-        }
-
-        Link {
-          to: Route::About,
-          class: "text-text-secondary hover:text-text-primary px-3 py-0.5 rounded-md transition-all duration-200",
-          "About"
-        }
-      }
+      // Custom title bar with drag region and window controls
+      TitleBar {}
 
       // Main content area (allow scrolling within content only)
       div {

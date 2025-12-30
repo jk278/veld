@@ -115,6 +115,13 @@ pub fn Home() -> Element {
   let tx_with_prefix =
     use_chat_coroutine_with_prefix(messages.clone(), chat_history.clone(), is_agent_running);
 
+  // Regenerate coroutine for editing messages
+  let tx_regenerate =
+    use_regenerate_coroutine(messages.clone(), chat_history.clone(), is_agent_running);
+
+  // Edit state for messages
+  let mut edit_state = use_signal(|| Option::<crate::components::chat::message_list::MessageEdit>::None);
+
   // Filter enabled providers and MCP servers (reactive - updates on config change)
   let enabled_providers = use_signal(|| {
     AppConfig::load()
@@ -278,6 +285,44 @@ pub fn Home() -> Element {
           messages: messages.read().clone(),
           has_api_key,
           scroll_container_id: scroll_container_id.to_string(),
+          edit_state: edit_state(),
+          on_edit: Callback::new(move |(message_id, content): (String, String)| {
+            if content.is_empty() {
+              // Cancel edit
+              edit_state.set(None);
+            } else {
+              // Start edit or confirm edit
+              let current = edit_state();
+              if current.as_ref().map(|e| &e.message_id) == Some(&message_id) && current.as_ref().map(|e| e.is_editing).unwrap_or(false) {
+                // Confirm edit - send to regenerate coroutine
+                tx_regenerate.send((message_id.clone(), content));
+                edit_state.set(None);
+              } else {
+                // Start edit mode
+                edit_state.set(Some(crate::components::chat::MessageEdit {
+                  message_id,
+                  is_editing: true,
+                  edit_content: content,
+                }));
+              }
+            }
+          }),
+          on_regenerate: Callback::new(move |assistant_message_id: String| {
+            // Find the user message before this assistant message
+            let msgs = messages.read();
+            if let Some(pos) = msgs.iter().position(|m| m.id == assistant_message_id) {
+              // Look backwards for the first user message
+              for i in (0..pos).rev() {
+                if msgs[i].role == "user" {
+                  let user_msg_id = msgs[i].id.clone();
+                  let user_msg_content = msgs[i].content.clone();
+                  // Trigger regeneration by "editing" the user message (content unchanged)
+                  tx_regenerate.send((user_msg_id, user_msg_content));
+                  break;
+                }
+              }
+            }
+          }),
         }
 
         // Input area
@@ -287,6 +332,7 @@ pub fn Home() -> Element {
           on_send: send_message,
           tx: tx.clone(),
           tx_with_prefix: tx_with_prefix.clone(),
+          is_agent_running: is_agent_running.clone(),
         }
       }
     }

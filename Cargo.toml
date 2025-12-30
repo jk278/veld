@@ -62,6 +62,9 @@ syntect = "5.2"
 # Image loading for window icons
 image = "0.25"
 
+# Regular expressions for pattern matching
+regex = "1.12.2"
+
 # Note: Replaced once_cell with std::sync::OnceLock (Rust 1.70+)
 # We've implemented our own theme system with pure Dioxus instead
 # For a real component library, consider using:

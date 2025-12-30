@@ -24,8 +24,10 @@ pub enum AgentStep {
   },
   /// Tool execution result
   ToolResult { name: String, result: String },
-  /// Final answer
-  Final(String),
+  /// Streaming content chunk
+  Chunk(String),
+  /// Final answer (sent after stream completes)
+  Final,
 }
 
 /// MCP agent error type
@@ -52,24 +54,18 @@ struct ToolCall {
 
 /// Process chat with MCP tool support
 /// Sends AgentStep updates through the channel for progressive rendering
+/// abort_rx: optional receiver for abort signal (send any value to abort)
 pub async fn chat_with_tools(
   messages: Vec<ChatMessage>,
   tx: mpsc::UnboundedSender<AgentStep>,
+  mut abort_rx: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<String> {
-  // Create AI client
   let client = AiClient::new().map_err(|e| AgentError::Ai(e.to_string()))?;
-
-  // Load enabled MCP servers
   let config = AppConfig::load().map_err(|e| AgentError::McpClient(e.to_string()))?;
   let enabled_servers = config.get_enabled_mcps();
 
   if enabled_servers.is_empty() {
-    // No MCP servers, just do normal chat
-    let response = client.chat_completion(messages)
-      .await
-      .map_err(|e| AgentError::Ai(e.to_string()))?;
-    let _ = tx.send(AgentStep::Final(response.clone()));
-    return Ok(response);
+    return stream_chat_response(client, messages, tx, abort_rx.resubscribe()).await;
   }
 
   // Connect to all MCP servers and collect tools
@@ -124,21 +120,13 @@ pub async fn chat_with_tools(
       let _ = tx.send(AgentStep::Connecting(
         "连接失败，切换到普通对话".to_string(),
       ));
-      let response = client.chat_completion(messages)
-        .await
-        .map_err(|e| AgentError::Ai(e.to_string()))?;
-      let _ = tx.send(AgentStep::Final(response.clone()));
-      return Ok(response);
+      return stream_chat_response(client, messages, tx, abort_rx.resubscribe()).await;
     }
     Err(_) => {
       let _ = tx.send(AgentStep::Connecting(
         "连接超时，切换到普通对话".to_string(),
       ));
-      let response = client.chat_completion(messages)
-        .await
-        .map_err(|e| AgentError::Ai(e.to_string()))?;
-      let _ = tx.send(AgentStep::Final(response.clone()));
-      return Ok(response);
+      return stream_chat_response(client, messages, tx, abort_rx.resubscribe()).await;
     }
   };
 
@@ -159,11 +147,7 @@ pub async fn chat_with_tools(
     let _ = tx.send(AgentStep::Connecting(
       "没有加载到工具，切换到普通对话".to_string(),
     ));
-    let response = client.chat_completion(messages)
-      .await
-      .map_err(|e| AgentError::Ai(e.to_string()))?;
-    let _ = tx.send(AgentStep::Final(response.clone()));
-    return Ok(response);
+    return stream_chat_response(client, messages, tx, abort_rx.resubscribe()).await;
   }
 
   // Build system prompt with tool definitions
@@ -200,83 +184,168 @@ pub async fn chat_with_tools(
   let mut current_messages = enhanced_messages;
 
   for iteration in 0..max_iterations {
-    // Get AI response
-    let response = client.chat_completion(current_messages.clone())
-      .await
-      .map_err(|e| {
-        eprintln!("[MCP] AI error: {}", e);
-        AgentError::Ai(e.to_string())
-      })?;
+    // Get AI response stream
+    let mut rx = client.chat(current_messages.clone()).await.map_err(|e| {
+      eprintln!("[MCP] AI error: {}", e);
+      AgentError::Ai(e.to_string())
+    })?;
 
-    let response_preview = if response.len() > 100 {
-      // Use char slicing to avoid cutting multi-byte characters (like Chinese)
-      format!("{}...", response.chars().take(100).collect::<String>())
-    } else {
-      response.clone()
-    };
-    eprintln!(
-      "[MCP] [ITERATION {}] Response ({} chars): {}",
-      iteration + 1,
-      response.len(),
-      response_preview
-    );
+    // Stream response: accumulate to detect tool call, or stream directly
+    let mut accumulated = String::new();
+    let mut is_tool_call = false;
 
-    // Check if response contains a tool call
-    match parse_tool_call(&response) {
-      Ok(tool_call) => {
-        eprintln!(
-          "[MCP] [ITERATION {}] Tool call detected: {:?}",
-          iteration + 1,
-          tool_call
-        );
+    // Read first chunks to check for tool call (tool calls usually start immediately)
+    loop {
+      tokio::select! {
+        // Check for abort signal
+        _ = abort_rx.recv() => {
+          eprintln!("[MCP] Aborted by user");
+          let _ = tx.send(AgentStep::Final);
+          return Ok(String::new());
+        }
+        // Receive stream chunk
+        chunk_result = rx.recv() => {
+          let chunk = match chunk_result {
+            Some(Ok(c)) => c,
+            Some(Err(e)) => {
+              eprintln!("[MCP] Stream error: {}", e);
+              return Err(AgentError::Ai(e.to_string()));
+            }
+            None => break, // Stream ended
+          };
+          accumulated.push_str(&chunk);
 
-        // Send thinking step with AI response as content (user can expand to see tool call request)
-        let _ = tx.send(AgentStep::Thinking {
-          short: format!("思考中 (第{}轮)...", iteration + 1),
-          content: Some(response.clone()),
-        });
+          // Check if we have enough content to detect tool call
+          if accumulated.len() > 50 {
+            if parse_tool_call(&accumulated).is_ok() {
+              is_tool_call = true;
+              // Collect remaining response
+              loop {
+                tokio::select! {
+                  _ = abort_rx.recv() => {
+                    eprintln!("[MCP] Aborted during tool call collection");
+                    let _ = tx.send(AgentStep::Final);
+                    return Ok(String::new());
+                  }
+                  chunk_result = rx.recv() => {
+                    match chunk_result {
+                      Some(Ok(c)) => accumulated.push_str(&c),
+                      Some(Err(e)) => {
+                        eprintln!("[MCP] Stream error: {}", e);
+                        return Err(AgentError::Ai(e.to_string()));
+                      }
+                      None => break,
+                    }
+                  }
+                }
+              }
+              break;
+            } else {
+              // Not a tool call, stream accumulated and continue streaming
+              if !accumulated.is_empty() {
+                let _ = tx.send(AgentStep::Chunk(accumulated.clone()));
+              }
 
-        // Send tool call step
-        let _ = tx.send(AgentStep::ToolCall {
-          name: tool_call.name.clone(),
-          args: tool_call.arguments.clone(),
-        });
-
-        // Execute tool call
-        let tool_result = execute_tool_call(&tool_call, &mut clients)?;
-
-        // Send tool result step
-        let _ = tx.send(AgentStep::ToolResult {
-          name: tool_call.name.clone(),
-          result: tool_result.clone(),
-        });
-
-        // Add assistant message with tool call
-        current_messages.push(ChatMessage {
-          role: "assistant".to_string(),
-          content: response,
-        });
-
-        // Add tool result as user message
-        current_messages.push(ChatMessage {
-          role: "user".to_string(),
-          content: format!("Tool result: {}", tool_result),
-        });
-
-        // Continue loop
+              // Stream remaining chunks directly
+              loop {
+                tokio::select! {
+                  _ = abort_rx.recv() => {
+                    eprintln!("[MCP] Aborted during streaming");
+                    let _ = tx.send(AgentStep::Final);
+                    return Ok(String::new());
+                  }
+                  chunk_result = rx.recv() => {
+                    match chunk_result {
+                      Some(Ok(chunk)) => {
+                        let _ = tx.send(AgentStep::Chunk(chunk));
+                      }
+                      Some(Err(e)) => {
+                        eprintln!("[MCP] Stream error: {}", e);
+                        let _ = tx.send(AgentStep::Final);
+                        return Err(AgentError::Ai(e.to_string()));
+                      }
+                      None => {
+                        let _ = tx.send(AgentStep::Final);
+                        return Ok(String::new());
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
-      Err(e) => {
-        eprintln!("[MCP] [ITERATION {}] No tool call: {}", iteration + 1, e);
-        // No tool call, return final response
-        let _ = tx.send(AgentStep::Final(response.clone()));
-        return Ok(response);
+    }
+
+    // If accumulated but not decided (short response), check for tool call
+    if !is_tool_call && !accumulated.is_empty() {
+      if parse_tool_call(&accumulated).is_ok() {
+        is_tool_call = true;
+      } else {
+        // Not a tool call, stream it (no byte-level splitting)
+        let _ = tx.send(AgentStep::Chunk(accumulated.clone()));
+        let _ = tx.send(AgentStep::Final);
+        return Ok(String::new());
+      }
+    }
+
+    // Handle tool call path
+    if is_tool_call {
+      let response = accumulated;
+
+      match parse_tool_call(&response) {
+        Ok(tool_call) => {
+          // Tool call detected - send as Thinking step (not streamed)
+          let _ = tx.send(AgentStep::Thinking {
+            short: format!("思考中 (第{}轮)...", iteration + 1),
+            content: Some(response.clone()),
+          });
+
+          // Send tool call step
+          let _ = tx.send(AgentStep::ToolCall {
+            name: tool_call.name.clone(),
+            args: tool_call.arguments.clone(),
+          });
+
+          // Execute tool call
+          let tool_result = execute_tool_call(&tool_call, &mut clients)?;
+
+          // Send tool result step
+          let _ = tx.send(AgentStep::ToolResult {
+            name: tool_call.name.clone(),
+            result: tool_result.clone(),
+          });
+
+          // Add assistant message with tool call
+          current_messages.push(ChatMessage {
+            role: "assistant".to_string(),
+            content: response,
+          });
+
+          // Add tool result as user message
+          current_messages.push(ChatMessage {
+            role: "user".to_string(),
+            content: format!("Tool result: {}", tool_result),
+          });
+
+          // Continue loop
+        }
+        Err(_) => {
+          // Parse failed, stream as normal response
+          for char_chunk in response.chars().collect::<Vec<char>>().chunks(10) {
+            let _ = tx.send(AgentStep::Chunk(char_chunk.iter().collect()));
+          }
+          let _ = tx.send(AgentStep::Final);
+          return Ok(response);
+        }
       }
     }
   }
 
   // Max iterations reached
   eprintln!("[MCP] Maximum iterations reached");
-  let _ = tx.send(AgentStep::Final("达到最大迭代次数".to_string()));
+  let _ = tx.send(AgentStep::Final);
   Err(AgentError::Ai("Maximum iterations reached".to_string()))
 }
 
@@ -488,4 +557,42 @@ fn execute_tool_call(tool_call: &ToolCall, clients: &mut [McpClient]) -> Result<
     "Tool not found: {}",
     tool_call.name
   )))
+}
+
+/// Stream chat response and send chunks via AgentStep
+async fn stream_chat_response(
+  client: AiClient,
+  messages: Vec<ChatMessage>,
+  tx: mpsc::UnboundedSender<AgentStep>,
+  mut abort_rx: tokio::sync::broadcast::Receiver<()>,
+) -> Result<String> {
+  let mut rx = client.chat(messages).await.map_err(|e| AgentError::Ai(e.to_string()))?;
+  let mut full_response = String::new();
+
+  loop {
+    tokio::select! {
+      _ = abort_rx.recv() => {
+        eprintln!("[MCP] Stream aborted");
+        let _ = tx.send(AgentStep::Final);
+        return Ok(String::new());
+      }
+      chunk_result = rx.recv() => {
+        match chunk_result {
+          Some(Ok(chunk)) => {
+            full_response.push_str(&chunk);
+            let _ = tx.send(AgentStep::Chunk(chunk));
+          }
+          Some(Err(e)) => {
+            eprintln!("[MCP] Stream error: {}", e);
+            let _ = tx.send(AgentStep::Final);
+            return Err(AgentError::Ai(e.to_string()));
+          }
+          None => {
+            let _ = tx.send(AgentStep::Final);
+            return Ok(full_response);
+          }
+        }
+      }
+    }
+  }
 }

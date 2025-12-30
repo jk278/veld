@@ -9,7 +9,7 @@
   "[dotenv]": {
     "editor.inlineSuggest.enabled": false
   },
-  "editor.fontFamily": "JetBrains Mono, LXGW WenKai GB",
+  "editor.fontFamily": "JetBrains Mono, LXGW WenKai Mono GB",
   "editor.fontLigatures": true,
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer"

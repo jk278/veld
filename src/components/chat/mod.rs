@@ -11,13 +11,13 @@ pub mod sidebar;
 // Re-export commonly used components
 pub use header::ChatHeader;
 pub use input_area::{ChatInput, InputArea};
-pub use message_list::{EmptyState, MessageList};
+pub use message_list::{EmptyState, MessageList, MessageEdit};
 pub use sidebar::ChatSidebar;
 
 // Re-export hooks
 pub use hooks::{
-  use_auto_scroll, use_chat_coroutine, use_chat_coroutine_with_prefix, use_message_sync,
-  use_scroll_state_init,
+  abort_streaming, use_auto_scroll, use_chat_coroutine, use_chat_coroutine_with_prefix,
+  use_message_sync, use_regenerate_coroutine, use_scroll_state_init,
 };
 
 // Re-export handlers

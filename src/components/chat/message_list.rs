@@ -14,12 +14,23 @@ pub struct ChatMessage {
   pub timestamp: u64,
 }
 
+/// Edit state for messages
+#[derive(Clone, Debug, PartialEq)]
+pub struct MessageEdit {
+  pub message_id: String,
+  pub is_editing: bool,
+  pub edit_content: String,
+}
+
 /// Message list container
 #[component]
 pub fn MessageList(
   messages: Vec<ChatMessage>,
   has_api_key: bool,
   #[props(default)] scroll_container_id: String,
+  #[props(default)] edit_state: Option<MessageEdit>,
+  #[props(default)] on_edit: Option<EventHandler<(String, String)>>,
+  #[props(default)] on_regenerate: Option<EventHandler<String>>,
 ) -> Element {
   rsx! {
     div {
@@ -34,6 +45,9 @@ pub fn MessageList(
         for msg in messages.into_iter() {
           MessageBubble {
             message: msg,
+            edit_state: edit_state.clone(),
+            on_edit: on_edit.clone(),
+            on_regenerate: on_regenerate.clone(),
           }
         }
       }
@@ -72,9 +86,21 @@ pub fn EmptyState(has_api_key: bool) -> Element {
 
 /// Individual message bubble
 #[component]
-fn MessageBubble(message: ChatMessage) -> Element {
+fn MessageBubble(
+  message: ChatMessage,
+  #[props(default)] edit_state: Option<MessageEdit>,
+  #[props(default)] on_edit: Option<EventHandler<(String, String)>>,
+  #[props(default)] on_regenerate: Option<EventHandler<String>>,
+) -> Element {
   // Check if this is an intermediate step (contains bullet point marker)
   let is_intermediate = message.content.contains("• ");
+
+  // Check if this message is being edited
+  let is_editing = edit_state
+    .as_ref()
+    .map(|e| e.is_editing && e.message_id == message.id)
+    .unwrap_or(false);
+  let edit_content = edit_state.as_ref().map(|e| e.edit_content.clone()).unwrap_or_default();
 
   rsx! {
     div {
@@ -89,12 +115,18 @@ fn MessageBubble(message: ChatMessage) -> Element {
         UserMessageBubble {
           content: message.content.clone(),
           timestamp: message.timestamp,
+          is_editing,
+          edit_content: edit_content.clone(),
+          on_edit: on_edit.clone(),
+          message_id: message.id.clone(),
         }
       } else {
         AssistantMessageBubble {
           content: message.content.clone(),
           timestamp: message.timestamp,
           is_intermediate,
+          message_id: message.id.clone(),
+          on_regenerate: on_regenerate.clone(),
         }
       }
     }
@@ -103,15 +135,89 @@ fn MessageBubble(message: ChatMessage) -> Element {
 
 /// User message bubble
 #[component]
-fn UserMessageBubble(content: String, timestamp: u64) -> Element {
+fn UserMessageBubble(
+  content: String,
+  timestamp: u64,
+  #[props(default)] is_editing: bool,
+  #[props(default)] edit_content: String,
+  #[props(default)] on_edit: Option<EventHandler<(String, String)>>,
+  #[props(default)] message_id: String,
+) -> Element {
+  let mut local_edit = use_signal(|| edit_content.clone());
+
+  // Update local edit signal when edit_content changes from parent
+  use_effect(move || {
+    if is_editing && local_edit() != edit_content {
+      local_edit.set(edit_content.clone());
+    }
+  });
+
+  // Clone values for closures
+  let message_id_key = message_id.clone();
+  let message_id_confirm = message_id.clone();
+  let message_id_cancel = message_id.clone();
+  let message_id_edit = message_id.clone();
+  let content_clone = content.clone();
+
   rsx! {
     div {
-      class: "max-w-2xl max-w-[80%] flex justify-end",
+      class: "max-w-2xl max-w-[80%] flex justify-end flex-col items-end gap-2",
+
       div {
         class: "px-4 py-2.5 bg-primary text-white rounded-2xl rounded-tr-md",
-        PlainTextContent {
-          content: content.clone(),
-          class: "text-sm leading-relaxed".to_string(),
+        if is_editing {
+          textarea {
+            class: "bg-bg-tertiary text-text-primary rounded px-2 py-1 text-sm w-full min-w-64 min-h-24 resize-none outline-none",
+            value: local_edit(),
+            oninput: move |e: FormEvent| local_edit.set(e.value()),
+            onkeydown: move |e: KeyboardEvent| {
+              if e.key() == Key::Enter && e.modifiers().contains(dioxus::prelude::Modifiers::CONTROL) {
+                if let Some(ref handler) = on_edit {
+                  handler((message_id_key.clone(), local_edit()));
+                }
+              }
+            },
+          }
+        } else {
+          PlainTextContent {
+            content: content.clone(),
+            class: "text-sm leading-relaxed".to_string(),
+          }
+        }
+      }
+
+      if !is_editing && on_edit.is_some() {
+        button {
+          class: "text-xs text-text-muted hover:text-text-primary transition-colors",
+          onclick: move |_| {
+            local_edit.set(content_clone.clone());
+            if let Some(ref handler) = on_edit {
+              handler((message_id_edit.clone(), content_clone.clone()));
+            }
+          },
+          "编辑"
+        }
+      } else if is_editing {
+        div {
+          class: "flex gap-2",
+          button {
+            class: "text-xs text-success hover:text-success/80 transition-colors",
+            onclick: move |_| {
+              if let Some(ref handler) = on_edit {
+                handler((message_id_confirm.clone(), local_edit()));
+              }
+            },
+            "确认 (Ctrl+Enter)"
+          }
+          button {
+            class: "text-xs text-error hover:text-error/80 transition-colors",
+            onclick: move |_| {
+              if let Some(ref handler) = on_edit {
+                handler((message_id_cancel.clone(), String::new()));
+              }
+            },
+            "取消"
+          }
         }
       }
     }
@@ -133,11 +239,50 @@ fn parse_thinking_step(line: &str) -> Option<(String, Option<String>)> {
 
 /// Assistant message bubble
 #[component]
-fn AssistantMessageBubble(content: String, timestamp: u64, is_intermediate: bool) -> Element {
+fn AssistantMessageBubble(
+  content: String,
+  timestamp: u64,
+  is_intermediate: bool,
+  #[props(default)] message_id: String,
+  #[props(default)] on_regenerate: Option<EventHandler<String>>,
+) -> Element {
   let is_dark = use_is_dark();
+  let mut copy_status = use_signal(|| false);
+
+  // Use dioxus's spawn for async tasks in the UI context
+  use dioxus::prelude::spawn;
 
   // Count steps for the summary
   let step_count = content.matches("• ").count();
+
+  // Copy handler using arboard (native clipboard)
+  let copy_message = {
+    let content = content.clone();
+    move |_| {
+      if arboard::Clipboard::new()
+        .and_then(|mut clipboard| clipboard.set_text(&content))
+        .is_ok()
+      {
+        copy_status.set(true);
+        let mut copy_status = copy_status.clone();
+        spawn(async move {
+          tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+          copy_status.set(false);
+        });
+      }
+    }
+  };
+
+  // Create regenerate handler outside rsx - needs to own the handler
+  let show_regenerate = on_regenerate.is_some();
+  let regenerate_handler = {
+    let msg_id = message_id.clone();
+    move |_| {
+      if let Some(ref handler) = on_regenerate {
+        handler(msg_id.clone());
+      }
+    }
+  };
 
   rsx! {
     div {
@@ -196,13 +341,32 @@ fn AssistantMessageBubble(content: String, timestamp: u64, is_intermediate: bool
           }
         }
       } else {
-        // Final answer: normal markdown rendering
+        // Final answer: markdown rendering with action buttons at bottom
         div {
-          class: "markdown-body w-full text-sm text-text-primary",
-          MarkdownContent {
-            content: content.clone(),
-            class: String::new(),
-            dark: is_dark(),
+          div {
+            class: "markdown-body w-full text-sm text-text-primary",
+            MarkdownContent {
+              content: content.clone(),
+              class: String::new(),
+              dark: is_dark(),
+            }
+          }
+          // Action buttons at bottom
+          div {
+            class: "flex gap-2 mt-3 flex-wrap",
+            button {
+              class: format!("px-3 py-1.5 bg-bg-secondary border border-border rounded text-xs text-text-secondary hover:text-text-primary hover:border-text-muted transition-colors {}", if copy_status() { "bg-success/10 border-success/30 text-success" } else { "" }),
+              onclick: copy_message,
+              disabled: copy_status(),
+              if copy_status() { "已复制!" } else { "复制" }
+            }
+            if show_regenerate {
+              button {
+                class: "px-3 py-1.5 bg-bg-secondary border border-border rounded text-xs text-text-secondary hover:text-text-primary hover:border-text-muted transition-colors",
+                onclick: regenerate_handler,
+                "重新生成"
+              }
+            }
           }
         }
       }

@@ -189,4 +189,42 @@ impl ChatHistoryData {
       .filter(|s| s.provider_id == provider_id)
       .collect()
   }
+
+  /// Update a specific message in current session
+  pub fn update_message(&mut self, message_id: &str, new_content: String) {
+    if let Some(session) = self.get_current_session_mut() {
+      if let Some(msg) = session.messages.iter_mut().find(|m| m.id == message_id) {
+        msg.content = new_content;
+        let now = std::time::SystemTime::now()
+          .duration_since(std::time::UNIX_EPOCH)
+          .unwrap()
+          .as_secs();
+        session.updated_at = now;
+      }
+    }
+  }
+
+  /// Truncate messages from a specific index onwards (for regeneration)
+  /// Returns the messages that were removed
+  pub fn truncate_from_index(&mut self, index: usize) -> Vec<ChatMessage> {
+    if let Some(session) = self.get_current_session_mut() {
+      if index < session.messages.len() {
+        let removed = session.messages.split_off(index);
+        let now = std::time::SystemTime::now()
+          .duration_since(std::time::UNIX_EPOCH)
+          .unwrap()
+          .as_secs();
+        session.updated_at = now;
+        return removed;
+      }
+    }
+    Vec::new()
+  }
+
+  /// Get message index by ID
+  pub fn get_message_index(&self, message_id: &str) -> Option<usize> {
+    self
+      .get_current_session()
+      .and_then(|session| session.messages.iter().position(|m| m.id == message_id))
+  }
 }

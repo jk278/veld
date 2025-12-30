@@ -6347,6 +6347,7 @@ dependencies = [
  "notify",
  "notify-rust",
  "pulldown-cmark",
+ "regex",
  "serde",
  "serde_json",
  "syn 2.0.111",

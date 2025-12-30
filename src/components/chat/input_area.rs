@@ -2,6 +2,7 @@
 //! 聊天输入区域组件 - 支持 /命令快速工具
 
 use crate::components::command_palette::CommandPalette;
+use crate::components::chat::abort_streaming;
 use crate::config::{AppConfig, QuickPrompt};
 use dioxus::prelude::*;
 
@@ -15,6 +16,7 @@ pub fn InputArea(
   on_send: EventHandler<MouseEvent>,
   tx: Coroutine<String>,
   tx_with_prefix: Coroutine<(String, Option<QuickPrompt>)>,
+  is_agent_running: Signal<bool>,
 ) -> Element {
   // Command palette state
   let mut show_palette = use_signal(|| false);
@@ -23,7 +25,6 @@ pub fn InputArea(
   // Active command state
   let mut active_command = use_signal(|| Option::<QuickPrompt>::None);
   let mut user_content = use_signal(String::new);
-  let mut textarea_rows = use_signal(|| 1u32);
 
   // Load quick prompts from config
   let quick_prompts = use_signal(|| {
@@ -57,11 +58,27 @@ pub fn InputArea(
     let value = e.value();
     user_content.set(value.clone());
 
-    // Auto-resize textarea based on content (1-6 rows)
-    // Count newlines to handle empty trailing lines
-    let newline_count = value.matches('\n').count();
-    let new_rows = (newline_count + 1).clamp(1, 6) as u32;
-    textarea_rows.set(new_rows);
+    // Auto-resize textarea based on actual content height (scrollHeight)
+    // This accounts for both explicit newlines AND text wrapping
+    let _ = dioxus::document::eval(
+      r#"
+        setTimeout(() => {
+          const textarea = document.querySelector('.user-content-input');
+          if (!textarea) return;
+
+          // Get computed line-height
+          const style = window.getComputedStyle(textarea);
+          const lineHeight = parseFloat(style.lineHeight) || 22;
+
+          // Calculate current rows based on scrollHeight
+          const currentRows = Math.round(textarea.scrollHeight / lineHeight);
+
+          // Clamp between 1 and 6, then set rows attribute directly
+          const newRows = Math.max(1, Math.min(6, currentRows));
+          textarea.setAttribute('rows', newRows.toString());
+        }, 0);
+      "#
+    );
 
     update_input_text();
 
@@ -194,6 +211,13 @@ pub fn InputArea(
     parse_and_send();
   };
 
+  // Stop handler - abort streaming
+  let stop_click = move |_: MouseEvent| {
+    tokio::spawn(async move {
+      abort_streaming().await;
+    });
+  };
+
   // Handle keyboard events
   let handle_keydown = move |e: KeyboardEvent| {
     // Escape: close palette or clear command
@@ -222,8 +246,8 @@ pub fn InputArea(
       }
     }
 
-    // Shift+Enter: new line, Enter: send message
-    if e.key() == Key::Enter && has_api_key {
+    // Shift+Enter: new line, Enter: send message (disabled when agent running)
+    if e.key() == Key::Enter && has_api_key && !is_agent_running() {
       if e.modifiers().contains(dioxus::prelude::Modifiers::SHIFT) {
         // Allow default behavior (new line)
       } else {
@@ -262,20 +286,29 @@ pub fn InputArea(
           // User content input
           textarea {
             class: "user-content-input chat-input-textarea flex-1 min-w-0 bg-transparent border-none resize-none outline-none font-mono text-sm",
-            rows: textarea_rows(),
+            rows: 1,
             placeholder: placeholder(),
             value: user_content(),
-            disabled: !has_api_key,
+            disabled: !has_api_key || is_agent_running(),
             oninput: handle_input,
             onkeydown: handle_keydown,
           }
         }
 
-        button {
-          class: "px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap",
-          disabled: !has_api_key || user_content().trim().is_empty(),
-          onclick: send_click,
-          "Send"
+        // Show Stop button when agent running, Send button otherwise
+        if is_agent_running() {
+          button {
+            class: "px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-all text-sm font-medium whitespace-nowrap",
+            onclick: stop_click,
+            "Stop"
+          }
+        } else {
+          button {
+            class: "px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap",
+            disabled: !has_api_key || user_content().trim().is_empty(),
+            onclick: send_click,
+            "Send"
+          }
         }
       }
     }
@@ -344,6 +377,7 @@ pub fn ChatInput(
   on_send: EventHandler<MouseEvent>,
   tx: Coroutine<String>,
   tx_with_prefix: Coroutine<(String, Option<QuickPrompt>)>,
+  is_agent_running: Signal<bool>,
 ) -> Element {
   rsx! {
     InputArea {
@@ -352,6 +386,7 @@ pub fn ChatInput(
       on_send,
       tx,
       tx_with_prefix,
+      is_agent_running,
     }
   }
 }

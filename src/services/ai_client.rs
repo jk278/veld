@@ -2,8 +2,9 @@
 //! 使用 genai 统一接口支持 OpenAI & Anthropic 协议
 
 use crate::config::AppConfig;
+use futures_util::StreamExt;
 use genai::adapter::AdapterKind;
-use genai::chat::{ChatMessage as GenaiChatMessage, ChatRequest};
+use genai::chat::{ChatMessage as GenaiChatMessage, ChatRequest, ChatStreamEvent};
 use genai::resolver::{
   AuthData, Endpoint, Error as ResolverError, ModelMapper, ServiceTargetResolver,
 };
@@ -11,6 +12,7 @@ use genai::{Client, ModelIden, ServiceTarget};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 /// AI client error type
 #[derive(Debug, thiserror::Error)]
@@ -40,40 +42,6 @@ impl From<genai::Error> for AiError {
 pub struct ChatMessage {
   pub role: String,
   pub content: String,
-}
-
-/// 规范化自定义 API 端点 URL
-///
-/// # 规则
-/// - 已含完整路径（`/completions` 或 `/messages`）→ 不补全
-/// - 含版本号结尾（如 `/v1`, `/v2`）→ 补全对应路径
-/// - 否则统一补全 `/v1/...`
-fn normalize_endpoint_url(url: &str, adapter: AdapterKind) -> String {
-  let url = url.trim().trim_end_matches('/');
-
-  let is_complete_openai = url.ends_with("/completions");
-  let is_complete_anthropic = url.ends_with("/messages");
-
-  // 检测是否以版本号结尾 (/v1, /v2, /v4 等)
-  let has_version_suffix = regex::Regex::new(r"/v\d+$").unwrap().is_match(url);
-
-  match adapter {
-    AdapterKind::OpenAI if !is_complete_openai => {
-      if has_version_suffix {
-        format!("{}/chat/completions", url)
-      } else {
-        format!("{}/v1/chat/completions", url)
-      }
-    }
-    AdapterKind::Anthropic if !is_complete_anthropic => {
-      if has_version_suffix {
-        format!("{}/messages", url)
-      } else {
-        format!("{}/v1/messages", url)
-      }
-    }
-    _ => url.to_string(),
-  }
 }
 
 /// AI Client (使用 genai 统一接口)
@@ -115,7 +83,7 @@ impl AiClient {
           let endpoint = base_url
             .as_ref()
             .filter(|u| !u.is_empty())
-            .map(|url| Endpoint::from_owned(normalize_endpoint_url(url, *adapter_kind)))
+            .map(|url| Endpoint::from_owned(url.clone()))
             .unwrap_or_else(|| service_target.endpoint.clone());
 
           // API key
@@ -210,22 +178,39 @@ impl AiClient {
     Ok(ChatRequest::new(genai_messages))
   }
 
-  /// 发送聊天请求（非流式）
-  pub async fn chat_completion(&self, messages: Vec<ChatMessage>) -> Result<String> {
+  /// 流式聊天响应 - 返回 chunk 接收器
+  pub async fn chat(&self, messages: Vec<ChatMessage>) -> Result<mpsc::Receiver<Result<String>>> {
     let config = AppConfig::load().map_err(|e| AiError::Config(e.to_string()))?;
     let model = Self::get_active_model(&config)?;
-
     let chat_req = Self::to_genai_request(messages)?;
-    let response = self.client.exec_chat(&model, chat_req, None).await?;
+    let response = self.client.exec_chat_stream(&model, chat_req, None).await?;
+    let (tx, rx) = mpsc::channel(64);
 
-    Ok(response.first_text().unwrap_or_default().to_string())
+    tokio::spawn(async move {
+      let mut stream = response.stream;
+      while let Some(event) = stream.next().await {
+        match event {
+          Ok(ChatStreamEvent::Chunk(chunk)) => {
+            if tx.send(Ok(chunk.content)).await.is_err() {
+              break;
+            }
+          }
+          Ok(ChatStreamEvent::End(_)) | Err(_) => break,
+          _ => {}
+        }
+      }
+    });
+
+    Ok(rx)
   }
 
-  /// 发送聊天请求（流式）- 返回完整响应
-  pub async fn chat_completion_stream(&self, messages: Vec<ChatMessage>) -> Result<String> {
-    // TODO: 实现流式响应
-    // 目前使用非流式实现
-    self.chat_completion(messages).await
+  /// 收集完整响应（辅助函数）
+  pub async fn collect(rx: &mut mpsc::Receiver<Result<String>>) -> Result<String> {
+    let mut result = String::new();
+    while let Some(chunk) = rx.recv().await {
+      result.push_str(&chunk?);
+    }
+    Ok(result)
   }
 }
 

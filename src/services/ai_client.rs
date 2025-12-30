@@ -4,7 +4,9 @@
 use crate::config::AppConfig;
 use genai::adapter::AdapterKind;
 use genai::chat::{ChatMessage as GenaiChatMessage, ChatRequest};
-use genai::resolver::{AuthData, Endpoint, ModelMapper, ServiceTargetResolver, Error as ResolverError};
+use genai::resolver::{
+  AuthData, Endpoint, Error as ResolverError, ModelMapper, ServiceTargetResolver,
+};
 use genai::{Client, ModelIden, ServiceTarget};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
@@ -40,6 +42,40 @@ pub struct ChatMessage {
   pub content: String,
 }
 
+/// 规范化自定义 API 端点 URL
+///
+/// # 规则
+/// - 已含完整路径（`/completions` 或 `/messages`）→ 不补全
+/// - 含版本号结尾（如 `/v1`, `/v2`）→ 补全对应路径
+/// - 否则统一补全 `/v1/...`
+fn normalize_endpoint_url(url: &str, adapter: AdapterKind) -> String {
+  let url = url.trim().trim_end_matches('/');
+
+  let is_complete_openai = url.ends_with("/completions");
+  let is_complete_anthropic = url.ends_with("/messages");
+
+  // 检测是否以版本号结尾 (/v1, /v2, /v4 等)
+  let has_version_suffix = regex::Regex::new(r"/v\d+$").unwrap().is_match(url);
+
+  match adapter {
+    AdapterKind::OpenAI if !is_complete_openai => {
+      if has_version_suffix {
+        format!("{}/chat/completions", url)
+      } else {
+        format!("{}/v1/chat/completions", url)
+      }
+    }
+    AdapterKind::Anthropic if !is_complete_anthropic => {
+      if has_version_suffix {
+        format!("{}/messages", url)
+      } else {
+        format!("{}/v1/messages", url)
+      }
+    }
+    _ => url.to_string(),
+  }
+}
+
 /// AI Client (使用 genai 统一接口)
 pub struct AiClient {
   client: Arc<Client>,
@@ -52,7 +88,10 @@ impl AiClient {
     let model_mapper = Self::create_model_mapper(&config)?;
 
     // 创建 ServiceTargetResolver 来支持自定义 base_url 和 auth
-    let mut adapter_map: std::collections::HashMap<String, (AdapterKind, Option<String>, Option<String>)> = std::collections::HashMap::new();
+    let mut adapter_map: std::collections::HashMap<
+      String,
+      (AdapterKind, Option<String>, Option<String>),
+    > = std::collections::HashMap::new();
     for provider in &config.ai.providers {
       if provider.enabled {
         let adapter = match provider.adapter_type.as_deref() {
@@ -72,22 +111,26 @@ impl AiClient {
         let model_name: &str = service_target.model.model_name.as_ref();
 
         if let Some((adapter_kind, base_url, api_key)) = adapter_map.get(model_name) {
-          // 自定义 endpoint (使用 from_owned 支持动态 String)
+          // 自定义 endpoint - 使用规范化函数兼容不同 URL 格式
           let endpoint = base_url
             .as_ref()
             .filter(|u| !u.is_empty())
-            .map(|url| Endpoint::from_owned(url.clone()))
-              .unwrap_or_else(|| service_target.endpoint.clone());
+            .map(|url| Endpoint::from_owned(normalize_endpoint_url(url, *adapter_kind)))
+            .unwrap_or_else(|| service_target.endpoint.clone());
 
           // API key
           let auth = api_key
             .as_ref()
             .filter(|k| !k.is_empty())
             .map(|key| AuthData::from_single(key.clone()))
-              .unwrap_or_else(|| service_target.auth.clone());
+            .unwrap_or_else(|| service_target.auth.clone());
 
           let model = ModelIden::new(*adapter_kind, model_name);
-          Ok(ServiceTarget { endpoint, auth, model })
+          Ok(ServiceTarget {
+            endpoint,
+            auth,
+            model,
+          })
         } else {
           // 没有找到配置，使用原值
           Ok(service_target)
@@ -108,7 +151,8 @@ impl AiClient {
   /// 创建模型映射器 - 根据配置中的 adapter_type 映射到对应适配器
   fn create_model_mapper(config: &AppConfig) -> Result<ModelMapper> {
     // 创建模型名到适配器类型的映射
-    let mut adapter_map: std::collections::HashMap<String, AdapterKind> = std::collections::HashMap::new();
+    let mut adapter_map: std::collections::HashMap<String, AdapterKind> =
+      std::collections::HashMap::new();
 
     for provider in &config.ai.providers {
       if let Some(ref adapter_type) = provider.adapter_type {

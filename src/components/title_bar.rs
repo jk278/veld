@@ -21,7 +21,7 @@ pub fn TitleBar() -> Element {
   rsx! {
     div {
       class: "flex items-center justify-between h-8 bg-bg-secondary select-none shrink-0",
-      // Use CSS app-region for drag - no delay, works with double-click
+      // app-region: drag makes WebView2 treat this as non-client area (enables drag, double-click maximize, right-click system menu)
       style: "user-select: none; app-region: drag;",
 
       // Left: Navigation (draggable via CSS)
@@ -53,7 +53,7 @@ pub fn TitleBar() -> Element {
       // Right: Window controls (non-draggable)
       div {
         class: "flex items-center shrink-0",
-        // Disable drag on window controls
+        // no-drag restores click interaction
         style: "app-region: no-drag;",
 
         WindowButton {
@@ -90,7 +90,7 @@ fn NavLink(
 
   rsx! {
     div {
-      // Disable drag on nav links so clicks work
+      // no-drag allows link clicks
       style: "app-region: no-drag;",
       Link {
         to: route.clone(),

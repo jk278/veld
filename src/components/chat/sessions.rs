@@ -2,7 +2,7 @@
 //! 聊天侧边栏组件 - 会话列表
 
 use super::UiSession;
-use crate::hooks::use_sidebar_resize;
+use crate::components::ui::DrawerSidebar;
 use dioxus::prelude::*;
 
 /// Chat sidebar with session list (drawer overlay pattern)
@@ -16,23 +16,10 @@ pub fn ChatSidebar(
   on_close: EventHandler<MouseEvent>,
   #[props(default)] on_auto_collapse: EventHandler<()>,
 ) -> Element {
-  let (_sidebar_width, _is_resizing, start_resize) = use_sidebar_resize();
-
   rsx! {
-    // Overlay backdrop (click to close, narrow screen only)
-    div {
-      class: if sidebar_collapsed { "drawer-overlay" } else { "drawer-overlay visible" },
-      style: "opacity: 0;",
-      onclick: on_close,
-    }
-
-    // Drawer sidebar (responsive: overlay on narrow, inline on wide)
-    div {
-      class: {
-          let base = "drawer-sidebar";
-          if sidebar_collapsed { base.to_string() } else { format!("{base} visible") }
-      },
-      style: "transform: translateX(-100%);",
+    DrawerSidebar {
+      collapsed: sidebar_collapsed,
+      on_close,
 
       // Sidebar header
       div {
@@ -65,17 +52,6 @@ pub fn ChatSidebar(
               on_auto_collapse,
             }
           }
-        }
-      }
-
-      // Drag handle (desktop only, visible when expanded)
-      if !sidebar_collapsed {
-        div {
-          class: "sidebar-drag-handle",
-          onmousedown: move |e: MouseEvent| {
-            e.stop_propagation();
-            start_resize(());
-          },
         }
       }
     }

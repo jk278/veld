@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+// Re-export from hooks for default sidebar width
+pub use crate::hooks::DEFAULT_SIDEBAR_WIDTH;
+
 /// Application configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -125,7 +128,7 @@ impl Default for UiConfig {
     UiConfig {
       sidebar_collapsed: false,
       zoom_level: 1.0,
-      sidebar_width: 280,
+      sidebar_width: DEFAULT_SIDEBAR_WIDTH,
       window_width: None,
       window_height: None,
     }
@@ -453,9 +456,9 @@ impl AppConfig {
     });
   }
 
-  /// Update sidebar width (clamped to 200-600px)
+  /// Update sidebar width (clamped to 200-400px)
   pub fn update_sidebar_width(&mut self, width: u32) {
-    self.ui.sidebar_width = width.clamp(200, 600);
+    self.ui.sidebar_width = width.clamp(200, 400);
     let config = self.clone();
     std::thread::spawn(move || {
       if let Err(e) = config.save() {

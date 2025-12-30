@@ -16,22 +16,20 @@ pub const MIN_WINDOW_SIZE: (u32, u32) = (400, 500);
 /// 默认窗口尺寸（无配置时使用）
 pub const DEFAULT_WINDOW_SIZE: (u32, u32) = (1200, 800);
 
+/// Default sidebar width in pixels
+/// 默认侧边栏宽度
+pub const DEFAULT_SIDEBAR_WIDTH: u32 = 280;
+
 /// Get current window width as reactive signal
 /// NOTE: Returns actual window width, not RESPONSIVE_BREAKPOINT (which is UI threshold)
 pub fn use_window_size() -> Signal<f64> {
-  let window_width = use_signal(|| 0.0);  // Placeholder, updated immediately by use_effect
-  let mut width = window_width.clone();
-
-  // Get initial window size
-  use_effect(move || {
-    if let Ok(size) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+  let mut width = use_signal(|| {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
       let window = dioxus_desktop::window();
       let scale = window.scale_factor();
       let physical = window.inner_size();
       physical.width as f64 / scale
-    })) {
-      width.set(size);
-    }
+    })).unwrap_or(0.0)
   });
 
   // Listen for window resize events
@@ -41,13 +39,12 @@ pub fn use_window_size() -> Signal<f64> {
       if let WindowEvent::Resized(physical_size) = event {
         let window = dioxus_desktop::window();
         let scale = window.scale_factor();
-        let logical_width = physical_size.width as f64 / scale;
-        width.set(logical_width);
+        width.set(physical_size.width as f64 / scale);
       }
     }
   });
 
-  window_width
+  width
 }
 
 /// Persist window size across app restarts
@@ -72,87 +69,102 @@ pub fn use_window_save() {
 }
 
 /// Sidebar resize with drag handle
-/// Returns (width_signal, is_resizing, start_resize_callback)
+/// Returns (is_resizing, start_resize_callback)
 ///
-/// NOTE: Uses JavaScript global events instead of `use_wry_event_handler` because:
-/// - Dioxus 0.7 lacks official gesture/drag support
-/// - Desktop API has limited mouse event capture (mousemove/mouseup issues)
-/// - Third-party `dioxus-use-gesture` is unmaintained
-/// - JS provides reliable cross-platform event handling
-pub fn use_sidebar_resize() -> (Signal<u32>, Signal<bool>, Callback<()>) {
-  let sidebar_width = use_signal(|| {
-    AppConfig::load()
-      .map(|c| c.ui.sidebar_width)
-      .unwrap_or(280)
-  });
-
+/// NOTE: CSS variable (--sidebar-width) is the single source of truth for width
+/// - Config file only used for initial value and persistence
+/// - No signal synchronization needed between Rust and CSS
+///
+/// CRITICAL: Event-driven architecture required (polling has race conditions)
+/// - JavaScript eval() is async; first poll may execute before JS sets state
+/// - Fast drags complete within 50ms poll interval, causing incorrect width reads
+/// - CustomEvent + recv() ensures accurate final width delivery
+pub fn use_sidebar_resize() -> (Signal<bool>, Callback<()>) {
   let is_resizing = use_signal(|| false);
 
-  // Apply width to CSS variable when changed
+  // Initialize CSS variable from config
   use_effect(move || {
-    let width = sidebar_width();
+    let width = AppConfig::load()
+      .map(|c| c.ui.sidebar_width)
+      .unwrap_or(DEFAULT_SIDEBAR_WIDTH);
     let _ = dioxus::document::eval(&format!(
-      "document.documentElement.style.setProperty('--sidebar-width', '{width}px');"
+      "document.documentElement.style.setProperty('--sidebar-width', '{}px');",
+      width
     ));
   });
 
-  // Start drag with JavaScript global events
-  // Range: 180-500px (button min width ~140px + padding; max to avoid squeezing main chat area)
-  let start_resize = Callback::new({
-    let mut is_resizing = is_resizing.clone();
-    let current_width = sidebar_width.clone();
-    move |()| {
-      is_resizing.set(true);
-      let min_width = (current_width() - 120).max(180);
-      let max_width = (current_width() + 120).min(500);
-      let _ = dioxus::document::eval(&format!(
-        r#"
-          const minWidth = {min_width};
-          const maxWidth = {max_width};
-          document.documentElement.style.setProperty('user-select', 'none');
-          window.__sidebarDragHandler = (e) => {{
-            const newWidth = Math.max(minWidth, Math.min(maxWidth, e.clientX));
-            document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
-            window.__sidebarDragWidth = newWidth;
-          }};
-          window.__sidebarDragEnd = () => {{
-            window.removeEventListener('mousemove', window.__sidebarDragHandler);
-            window.removeEventListener('mouseup', window.__sidebarDragEnd);
-            document.documentElement.style.removeProperty('user-select');
-          }};
-          window.addEventListener('mousemove', window.__sidebarDragHandler);
-          window.addEventListener('mouseup', window.__sidebarDragEnd);
-        "#,
-      ));
-    }
-  });
+  // Listen for drag end events from JavaScript
+  let mut rx = dioxus::document::eval(
+    r#"
+      window.addEventListener('sidebar-resize-end', (e) => {
+        dioxus.send(e.detail);
+      });
+    "#
+  );
 
-  // Poll for width changes during drag and save on end
+  // Save width when drag ends
   use_resource({
-    let mut sidebar_width = sidebar_width.clone();
-    move || {
-      async move {
-        let mut last_saved = None;
-        loop {
-          tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-          if is_resizing() {
-            if let Ok(width) = dioxus::document::eval("window.__sidebarDragWidth || null").await {
-              if let Some(w) = width.as_u64() {
-                sidebar_width.set(w as u32);
-                last_saved = Some(w as u32);
-              }
-            }
-          } else if let Some(to_save) = last_saved.take() {
-            if let Ok(mut config) = AppConfig::load() {
-              config.update_sidebar_width(to_save);
-            }
-          }
+    let mut is_resizing = is_resizing.clone();
+    move || async move {
+      while let Ok(width) = rx.recv::<u64>().await {
+        if let Ok(mut config) = AppConfig::load() {
+          config.update_sidebar_width(width as u32);
         }
+        is_resizing.set(false);
       }
     }
   });
 
-  (sidebar_width, is_resizing, start_resize)
+  // Start drag with JavaScript global events
+  let start_resize = Callback::new({
+    let mut is_resizing = is_resizing.clone();
+    move |()| {
+      is_resizing.set(true);
+      let _ = dioxus::document::eval(&format!(
+        r#"
+          const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width')) || {0};
+          const MIN_WIDTH = 200;
+          const MAX_WIDTH = 400;
+          const sidebar = document.querySelector('.drawer-sidebar');
+          const dragHandle = document.querySelector('.sidebar-drag-handle');
+
+          document.documentElement.style.setProperty('user-select', 'none');
+          sidebar.style.transition = 'none';  // Disable for instant response
+          dragHandle.classList.add('active');  // Highlight during drag
+
+          // NOTE: Track width in mousemove (not read from CSS later)
+          // WARNING: Reading CSS after drag end may get stale value
+          // - setTimeout(..., 0) can execute before CSS update completes
+          // - getComputedStyle() reflects previous width during fast drags
+          window.__sidebarLastWidth = current;
+
+          window.__sidebarDragHandler = (e) => {{
+            const newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, e.clientX));
+            document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+            window.__sidebarLastWidth = newWidth;  // Sync with CSS update
+          }};
+
+          window.__sidebarDragEnd = () => {{
+            window.removeEventListener('mousemove', window.__sidebarDragHandler);
+            window.removeEventListener('mouseup', window.__sidebarDragEnd);
+            document.documentElement.style.removeProperty('user-select');
+            sidebar.style.transition = '';  // Restore transition
+            dragHandle.classList.remove('active');  // Remove highlight
+            const finalWidth = window.__sidebarLastWidth;
+            delete window.__sidebarLastWidth;
+            // Send final width to Rust via CustomEvent
+            window.dispatchEvent(new CustomEvent('sidebar-resize-end', {{ detail: finalWidth }}));
+          }};
+
+          window.addEventListener('mousemove', window.__sidebarDragHandler);
+          window.addEventListener('mouseup', window.__sidebarDragEnd);
+        "#,
+        DEFAULT_SIDEBAR_WIDTH
+      ));
+    }
+  });
+
+  (is_resizing, start_resize)
 }
 
 /// Check if current window width is narrow screen (< RESPONSIVE_BREAKPOINT)
@@ -164,25 +176,15 @@ pub fn use_is_narrow_screen() -> bool {
 /// Returns: (collapse_signal, window_width_signal)
 pub fn use_responsive_sidebar() -> (Signal<bool>, Signal<f64>) {
   let window_width = use_window_size();
-
-  let collapsed = use_signal(|| {
-    // Initial state: collapsed on narrow, expanded on wide
-    window_width() < RESPONSIVE_BREAKPOINT
-  });
+  let mut collapsed = use_signal(|| window_width() < RESPONSIVE_BREAKPOINT);
 
   // Auto-update collapse state when window resizes
-  let mut collapsed_clone = collapsed.clone();
-  dioxus_desktop::use_wry_event_handler(move |event, _| {
-    use dioxus_desktop::tao::event::{Event, WindowEvent};
-    if let Event::WindowEvent { event, .. } = event {
-      if let WindowEvent::Resized(physical_size) = event {
-        let window = dioxus_desktop::window();
-        let scale = window.scale_factor();
-        let logical_width = physical_size.width as f64 / scale;
-        let should_collapse = logical_width < RESPONSIVE_BREAKPOINT;
-        if should_collapse != collapsed_clone() {
-          collapsed_clone.set(should_collapse);
-        }
+  use_effect({
+    let window_width = window_width.clone();
+    move || {
+      let should_collapse = window_width() < RESPONSIVE_BREAKPOINT;
+      if collapsed() != should_collapse {
+        collapsed.set(should_collapse);
       }
     }
   });

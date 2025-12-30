@@ -4,6 +4,7 @@
 pub mod badge;
 pub mod button;
 pub mod card;
+pub mod drawer;
 pub mod input;
 pub mod modal;
 pub mod tabs;
@@ -14,6 +15,7 @@ pub use button::{Button, ButtonVariant, CancelButton, PrimaryButton, SecondaryBu
 pub use card::{
   Card, CardContent, CardFooter, CardHeader, InfoCard, InfoCardVariant, ListItem, StaticCard,
 };
+pub use drawer::DrawerSidebar;
 pub use input::{PasswordField, TextArea, TextField};
 pub use modal::{AdvancedSection, FormSection, Modal, ModalContent, ModalFooter, ModalHeader};
 pub use tabs::{NavTab, Tab, TabList, TabPanel, Tabs};

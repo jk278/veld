@@ -6,7 +6,6 @@ use crate::components::settings_tabs::{
 };
 use crate::components::ui::*;
 use crate::config::{AppConfig, McpServerConfig, ProviderConfig};
-use crate::hooks::{RESPONSIVE_BREAKPOINT, use_window_size};
 use dioxus::prelude::*;
 
 /// Settings tab
@@ -38,15 +37,11 @@ impl SettingsTab {
 pub fn Settings() -> Element {
   let mut active_tab = use_signal(|| SettingsTab::AI);
 
-  // Window width for responsive behavior
-  let window_width = use_window_size();
-
-  // Sidebar collapse state (persisted to config file, responsive to window size)
+  // Sidebar collapse state (persisted to config file)
   let mut nav_collapsed = use_signal(|| {
-    // Priority: config file > responsive default
     AppConfig::load()
       .map(|c| c.ui.sidebar_collapsed)
-      .unwrap_or_else(|_| window_width() < RESPONSIVE_BREAKPOINT)
+      .unwrap_or(false)
   });
 
   // Persist sidebar state to config when changed
@@ -57,33 +52,12 @@ pub fn Settings() -> Element {
     }
   });
 
-  // Auto-collapse sidebar on narrow screens when window resizes
-  let mut collapsed_clone = nav_collapsed.clone();
-  dioxus_desktop::use_wry_event_handler(move |event, _| {
-    use dioxus_desktop::tao::event::{Event, WindowEvent};
-    if let Event::WindowEvent { event, .. } = event {
-      if let WindowEvent::Resized(physical_size) = event {
-        let window = dioxus_desktop::window();
-        let scale = window.scale_factor();
-        let logical_width = physical_size.width as f64 / scale;
-        // Auto-collapse on narrow, but don't auto-expand (preserve user preference)
-        if logical_width < RESPONSIVE_BREAKPOINT && !collapsed_clone() {
-          collapsed_clone.set(true);
-        }
-      }
-    }
-  });
-
-  // Tab switch handler with auto-collapse on narrow screens
+  // Tab switch handler (no auto-collapse)
   let tab_switch = |tab: SettingsTab| {
     let mut collapsed = nav_collapsed.clone();
-    let width = window_width.clone();
     move |_| {
       active_tab.set(tab);
-      // Auto-collapse on narrow screens only
-      if width() < RESPONSIVE_BREAKPOINT {
-        collapsed.set(true);
-      }
+      collapsed.set(true);
     }
   };
 
@@ -127,60 +101,50 @@ pub fn Settings() -> Element {
     div {
       class: "relative flex flex-1 overflow-hidden h-full",
 
-      // Overlay backdrop (narrow screen only)
-      div {
-        class: if nav_collapsed() { "drawer-overlay" } else { "drawer-overlay visible" },
-        onclick: move |_| nav_collapsed.set(true),
-      }
-
-      // Nav sidebar (responsive: drawer on narrow, inline on wide)
-      div {
-        class: {
-            let base = "drawer-sidebar flex flex-col bg-bg-secondary border-r border-border";
-            if nav_collapsed() {
-                format!("{base} collapsed")
-            } else {
-                format!("{base} visible")
-            }
-        },
+      DrawerSidebar {
+        collapsed: nav_collapsed(),
+        on_close: move |_| nav_collapsed.set(true),
 
         // Nav tabs
         div {
-          class: "p-4 space-y-1",
-          NavTab {
-            label: "AI Providers".to_string(),
-            value: "ai".to_string(),
-            active_value: active_tab().as_str().to_string(),
-            icon: "🤖".to_string(),
-            onclick: tab_switch(SettingsTab::AI),
-          }
-          NavTab {
-            label: "MCP Servers".to_string(),
-            value: "mcp".to_string(),
-            active_value: active_tab().as_str().to_string(),
-            icon: "⚡".to_string(),
-            onclick: tab_switch(SettingsTab::MCP),
-          }
-          NavTab {
-            label: "Appearance".to_string(),
-            value: "appearance".to_string(),
-            active_value: active_tab().as_str().to_string(),
-            icon: "🎨".to_string(),
-            onclick: tab_switch(SettingsTab::Appearance),
-          }
-          NavTab {
-            label: "Shortcuts".to_string(),
-            value: "shortcuts".to_string(),
-            active_value: active_tab().as_str().to_string(),
-            icon: "⌨️".to_string(),
-            onclick: tab_switch(SettingsTab::Shortcuts),
-          }
-          NavTab {
-            label: "Quick Tools".to_string(),
-            value: "quick_tools".to_string(),
-            active_value: active_tab().as_str().to_string(),
-            icon: "🚀".to_string(),
-            onclick: tab_switch(SettingsTab::QuickTools),
+          class: "flex flex-col h-full",
+          div {
+            class: "p-4 space-y-1",
+            NavTab {
+              label: "AI Providers".to_string(),
+              value: "ai".to_string(),
+              active_value: active_tab().as_str().to_string(),
+              icon: "🤖".to_string(),
+              onclick: tab_switch(SettingsTab::AI),
+            }
+            NavTab {
+              label: "MCP Servers".to_string(),
+              value: "mcp".to_string(),
+              active_value: active_tab().as_str().to_string(),
+              icon: "⚡".to_string(),
+              onclick: tab_switch(SettingsTab::MCP),
+            }
+            NavTab {
+              label: "Appearance".to_string(),
+              value: "appearance".to_string(),
+              active_value: active_tab().as_str().to_string(),
+              icon: "🎨".to_string(),
+              onclick: tab_switch(SettingsTab::Appearance),
+            }
+            NavTab {
+              label: "Shortcuts".to_string(),
+              value: "shortcuts".to_string(),
+              active_value: active_tab().as_str().to_string(),
+              icon: "⌨️".to_string(),
+              onclick: tab_switch(SettingsTab::Shortcuts),
+            }
+            NavTab {
+              label: "Quick Tools".to_string(),
+              value: "quick_tools".to_string(),
+              active_value: active_tab().as_str().to_string(),
+              icon: "🚀".to_string(),
+              onclick: tab_switch(SettingsTab::QuickTools),
+            }
           }
         }
       }

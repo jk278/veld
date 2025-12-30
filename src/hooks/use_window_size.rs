@@ -3,9 +3,13 @@
 
 use dioxus::prelude::*;
 
+/// Responsive breakpoint: narrow screen threshold in pixels
+/// 响应式断点：窄屏阈值（像素）
+pub const RESPONSIVE_BREAKPOINT: f64 = 768.0;
+
 /// Window size state - tracks logical window width
 pub fn use_window_size() -> Signal<f64> {
-  let window_width = use_signal(|| 1024.0_f64);
+  let window_width = use_signal(|| RESPONSIVE_BREAKPOINT);
   let mut width = window_width.clone();
 
   // Get initial window size
@@ -36,9 +40,9 @@ pub fn use_window_size() -> Signal<f64> {
   window_width
 }
 
-/// Check if current window width is narrow screen (< 1024px)
+/// Check if current window width is narrow screen (< RESPONSIVE_BREAKPOINT)
 pub fn use_is_narrow_screen() -> bool {
-  use_window_size()() < 1024.0
+  use_window_size()() < RESPONSIVE_BREAKPOINT
 }
 
 /// Create a sidebar collapse state that responds to window size
@@ -48,7 +52,7 @@ pub fn use_responsive_sidebar() -> (Signal<bool>, Signal<f64>) {
 
   let collapsed = use_signal(|| {
     // Initial state: collapsed on narrow, expanded on wide
-    window_width() < 1024.0
+    window_width() < RESPONSIVE_BREAKPOINT
   });
 
   // Auto-update collapse state when window resizes
@@ -60,7 +64,7 @@ pub fn use_responsive_sidebar() -> (Signal<bool>, Signal<f64>) {
         let window = dioxus_desktop::window();
         let scale = window.scale_factor();
         let logical_width = physical_size.width as f64 / scale;
-        let should_collapse = logical_width < 1024.0;
+        let should_collapse = logical_width < RESPONSIVE_BREAKPOINT;
         if should_collapse != collapsed_clone() {
           collapsed_clone.set(should_collapse);
         }

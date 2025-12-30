@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 pub struct ThemeContext {
   pub theme_mode: Signal<ThemeMode>,
   pub is_dark: Signal<bool>,
+  pub zoom_level: Signal<f64>,
   pub config: Arc<Mutex<AppConfig>>,
 }
 
@@ -26,9 +27,11 @@ pub fn init_theme() -> ThemeContext {
   })));
 
   let initial_mode = config.lock().unwrap().theme.mode;
+  let initial_zoom = config.lock().unwrap().ui.zoom_level;
   let theme_mode = use_signal(move || initial_mode);
   let mut system_theme_signal = use_signal(|| SystemTheme::Dark);
   let mut is_dark = use_signal(|| matches!(initial_mode, ThemeMode::Dark));
+  let zoom_level = use_signal(move || initial_zoom);
   let config_clone = config.clone();
 
   // Initialize system theme from window on first run
@@ -80,6 +83,7 @@ pub fn init_theme() -> ThemeContext {
   ThemeContext {
     theme_mode,
     is_dark,
+    zoom_level,
     config,
   }
 }
@@ -113,4 +117,10 @@ pub fn use_theme() -> Signal<ThemeMode> {
 /// 从任何组件访问是否暗色模式
 pub fn use_is_dark() -> Signal<bool> {
   use_context::<ThemeContext>().is_dark
+}
+
+/// Access zoom level from any component
+/// 从任何组件访问缩放级别
+pub fn use_zoom_level() -> Signal<f64> {
+  use_context::<ThemeContext>().zoom_level
 }

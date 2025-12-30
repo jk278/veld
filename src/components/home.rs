@@ -5,7 +5,7 @@ use crate::chat_history::ChatHistoryData;
 use crate::components::chat::message_list::ChatMessage;
 use crate::components::chat::*;
 use crate::config::AppConfig;
-use crate::hooks::use_window_size;
+use crate::hooks::{RESPONSIVE_BREAKPOINT, use_window_size};
 use crate::theme::use_theme;
 use dioxus::prelude::*;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -61,7 +61,7 @@ pub fn Home() -> Element {
         let scale = window.scale_factor();
         let logical_width = physical_size.width as f64 / scale;
         // Auto-collapse on narrow, but don't auto-expand (preserve user preference)
-        if logical_width < 1024.0 && !collapsed_clone() {
+        if logical_width < RESPONSIVE_BREAKPOINT && !collapsed_clone() {
           collapsed_clone.set(true);
         }
       }
@@ -208,7 +208,7 @@ pub fn Home() -> Element {
     let mut collapsed = sidebar_collapsed.clone();
     let width = window_width.clone();
     move |_| {
-      if width() < 1024.0 {
+      if width() < RESPONSIVE_BREAKPOINT {
         collapsed.set(true);
       }
     }

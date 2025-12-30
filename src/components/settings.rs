@@ -6,7 +6,7 @@ use crate::components::settings_tabs::{
 };
 use crate::components::ui::*;
 use crate::config::{AppConfig, McpServerConfig, ProviderConfig};
-use crate::hooks::use_window_size;
+use crate::hooks::{RESPONSIVE_BREAKPOINT, use_window_size};
 use dioxus::prelude::*;
 
 /// Settings tab
@@ -46,7 +46,7 @@ pub fn Settings() -> Element {
     // Priority: config file > responsive default
     AppConfig::load()
       .map(|c| c.ui.sidebar_collapsed)
-      .unwrap_or_else(|_| window_width() < 1024.0)
+      .unwrap_or_else(|_| window_width() < RESPONSIVE_BREAKPOINT)
   });
 
   // Persist sidebar state to config when changed
@@ -67,7 +67,7 @@ pub fn Settings() -> Element {
         let scale = window.scale_factor();
         let logical_width = physical_size.width as f64 / scale;
         // Auto-collapse on narrow, but don't auto-expand (preserve user preference)
-        if logical_width < 1024.0 && !collapsed_clone() {
+        if logical_width < RESPONSIVE_BREAKPOINT && !collapsed_clone() {
           collapsed_clone.set(true);
         }
       }
@@ -81,7 +81,7 @@ pub fn Settings() -> Element {
     move |_| {
       active_tab.set(tab);
       // Auto-collapse on narrow screens only
-      if width() < 1024.0 {
+      if width() < RESPONSIVE_BREAKPOINT {
         collapsed.set(true);
       }
     }

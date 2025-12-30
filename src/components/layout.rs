@@ -4,7 +4,7 @@
 use crate::components::home::ACTIVATE_INPUT_TRIGGER;
 use crate::components::title_bar::TitleBar;
 use crate::routes::Route;
-use crate::theme::use_theme;
+use crate::theme::{use_theme, use_zoom_level};
 use dioxus::prelude::*;
 use dioxus_router::hooks::use_route;
 
@@ -17,6 +17,7 @@ pub static NAVIGATE_HOME_TRIGGER: std::sync::OnceLock<std::sync::Arc<std::sync::
 #[component]
 pub fn AppLayout() -> Element {
   let _theme_mode = use_theme();
+  let zoom_level = use_zoom_level();
   let navigator = use_navigator();
 
   // Track if we need to activate input after navigation
@@ -70,9 +71,10 @@ pub fn AppLayout() -> Element {
       // Custom title bar with drag region and window controls
       TitleBar {}
 
-      // Main content area (allow scrolling within content only)
+      // Main content area (apply zoom here, not to root container)
       div {
         class: "flex-1 flex-col overflow-hidden",
+        style: "zoom: {zoom_level()}",
         Outlet::<Route> {
 
         }

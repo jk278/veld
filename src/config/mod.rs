@@ -87,6 +87,7 @@ pub struct ShortcutConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiConfig {
   pub sidebar_collapsed: bool,
+  pub zoom_level: f64,  // 0.5 ~ 2.0, default 1.0
 }
 
 /// Quick Tools (presets) configuration
@@ -120,6 +121,7 @@ impl Default for UiConfig {
   fn default() -> Self {
     UiConfig {
       sidebar_collapsed: false,
+      zoom_level: 1.0,
     }
   }
 }
@@ -429,6 +431,17 @@ impl AppConfig {
     std::thread::spawn(move || {
       if let Err(e) = config.save() {
         eprintln!("[Config] Failed to save UI config: {}", e);
+      }
+    });
+  }
+
+  /// Update zoom level
+  pub fn update_zoom_level(&mut self, zoom: f64) {
+    self.ui.zoom_level = zoom.clamp(0.5, 2.0);
+    let config = self.clone();
+    std::thread::spawn(move || {
+      if let Err(e) = config.save() {
+        eprintln!("[Config] Failed to save zoom level: {}", e);
       }
     });
   }

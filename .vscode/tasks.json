@@ -41,7 +41,7 @@
       "command": "dx",
       "args": [
         "serve",
-        "--hotpatch"
+        "--hot-patch"
       ],
       "presentation": {
         "panel": "dedicated"

@@ -22,7 +22,7 @@ pub fn TitleBar() -> Element {
     div {
       class: "flex items-center justify-between h-8 bg-bg-secondary select-none shrink-0",
       // Use CSS app-region for drag - no delay, works with double-click
-      style: "user-select: none; -webkit-user-select: none; -webkit-app-region: drag; app-region: drag;",
+      style: "user-select: none; app-region: drag;",
 
       // Left: Navigation (draggable via CSS)
       div {
@@ -54,7 +54,7 @@ pub fn TitleBar() -> Element {
       div {
         class: "flex items-center shrink-0",
         // Disable drag on window controls
-        style: "-webkit-app-region: no-drag; app-region: no-drag;",
+        style: "app-region: no-drag;",
 
         WindowButton {
           icon: "−",
@@ -91,7 +91,7 @@ fn NavLink(
   rsx! {
     div {
       // Disable drag on nav links so clicks work
-      style: "-webkit-app-region: no-drag; app-region: no-drag;",
+      style: "app-region: no-drag;",
       Link {
         to: route.clone(),
         class: format!(

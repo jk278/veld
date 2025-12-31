@@ -161,13 +161,15 @@ fn UserMessageBubble(
 
   rsx! {
     div {
-      class: "max-w-2xl max-w-[80%] flex justify-end flex-col items-end gap-2",
+      class: "w-[80%] max-w-2xl flex justify-end flex-col items-end gap-2",
 
-      div {
-        class: "px-4 py-2.5 bg-primary text-white rounded-2xl rounded-tr-md",
-        if is_editing {
+      // 编辑模式：独立编辑区域
+      if is_editing {
+        div {
+          class: "w-full flex flex-col gap-2",
           textarea {
-            class: "bg-bg-tertiary text-text-primary rounded px-2 py-1 text-sm w-full min-w-64 min-h-24 resize-none outline-none",
+            class: "w-full px-3 py-2 bg-bg-primary text-text-primary border border-border rounded-lg resize-none outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono text-sm",
+            rows: 3,
             value: local_edit(),
             oninput: move |e: FormEvent| local_edit.set(e.value()),
             onkeydown: move |e: KeyboardEvent| {
@@ -178,45 +180,49 @@ fn UserMessageBubble(
               }
             },
           }
-        } else {
+          div {
+            class: "flex gap-2 justify-end",
+            button {
+              class: "px-3 py-1 text-sm bg-bg-secondary border border-border rounded hover:border-text-muted transition-colors",
+              onclick: move |_| {
+                if let Some(ref handler) = on_edit {
+                  handler((message_id_cancel.clone(), String::new()));
+                }
+              },
+              "取消"
+            }
+            button {
+              class: "px-3 py-1 text-sm bg-primary text-white rounded hover:bg-primary/90 transition-colors",
+              onclick: move |_| {
+                if let Some(ref handler) = on_edit {
+                  handler((message_id_confirm.clone(), local_edit()));
+                }
+              },
+              "保存 (Ctrl+Enter)"
+            }
+          }
+        }
+      } else {
+        // TODO: 选中用户消息复制时末尾多一个换行符（浏览器块级元素复制行为）
+        // 已优化：p→span（PlainTextContent）
+        div {
+          class: "px-4 py-2.5 bg-bg-secondary text-text-primary rounded-2xl rounded-tr-md",
           PlainTextContent {
             content: content.clone(),
             class: "text-sm leading-relaxed".to_string(),
           }
         }
-      }
 
-      if !is_editing && on_edit.is_some() {
-        button {
-          class: "text-xs text-text-muted hover:text-text-primary transition-colors",
-          onclick: move |_| {
-            local_edit.set(content_clone.clone());
-            if let Some(ref handler) = on_edit {
-              handler((message_id_edit.clone(), content_clone.clone()));
-            }
-          },
-          "编辑"
-        }
-      } else if is_editing {
-        div {
-          class: "flex gap-2",
+        if on_edit.is_some() {
           button {
-            class: "text-xs text-success hover:text-success/80 transition-colors",
+            class: "text-xs text-text-muted hover:text-text-primary transition-colors",
             onclick: move |_| {
+              local_edit.set(content_clone.clone());
               if let Some(ref handler) = on_edit {
-                handler((message_id_confirm.clone(), local_edit()));
+                handler((message_id_edit.clone(), content_clone.clone()));
               }
             },
-            "确认 (Ctrl+Enter)"
-          }
-          button {
-            class: "text-xs text-error hover:text-error/80 transition-colors",
-            onclick: move |_| {
-              if let Some(ref handler) = on_edit {
-                handler((message_id_cancel.clone(), String::new()));
-              }
-            },
-            "取消"
+            "编辑"
           }
         }
       }

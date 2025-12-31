@@ -70,7 +70,9 @@ pub fn InputArea(
           const style = window.getComputedStyle(textarea);
           const lineHeight = parseFloat(style.lineHeight) || 22;
 
-          // Calculate current rows based on scrollHeight
+          // Temporarily reset to 1 row to get accurate scrollHeight
+          const originalRows = textarea.getAttribute('rows');
+          textarea.setAttribute('rows', '1');
           const currentRows = Math.round(textarea.scrollHeight / lineHeight);
 
           // Clamp between 1 and 6, then set rows attribute directly

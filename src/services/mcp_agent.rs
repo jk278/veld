@@ -451,86 +451,51 @@ fn parse_tool_call(response: &str) -> Result<ToolCall> {
     eprintln!("[MCP] Strategy 1: Not valid JSON, trying extraction...");
   }
 
-  // Strategy 2: Extract JSON from text (when JSON is embedded in response)
-  // Find the last occurrence of {"tool_call": ...} pattern
-  if let Some(start) = cleaned.find(r#"{"tool_call":"#) {
-    let from_start = &cleaned[start..];
-    // Find matching closing brace for the tool_call object
-    let mut brace_count = 0;
-    let mut in_string = false;
-    let mut end_idx = 0;
-
-    for (i, c) in from_start.chars().enumerate() {
-      match c {
-        '"' if !in_string => in_string = true,
-        '"' if in_string => in_string = false,
-        '{' if !in_string => brace_count += 1,
-        '}' if !in_string => {
-          brace_count -= 1;
-          if brace_count == 0 {
-            end_idx = i + 1;
-            break;
-          }
-        }
-        _ => {}
-      }
-    }
-
-    if end_idx > 0 {
-      let json_str = &from_start[..end_idx];
-      eprintln!("[MCP] Extracted JSON: {}", json_str);
-
-      if let Ok(v) = serde_json::from_str::<Value>(json_str) {
-        if let Some(tc) = v.get("tool_call") {
-          eprintln!("[MCP] Found tool_call: {}", tc);
-          return Ok(
-            serde_json::from_value(tc.clone()).map_err(|e| AgentError::ToolParse(e.to_string()))?,
-          );
-        }
-      }
-    }
-  }
-
-  // Strategy 3: Look for tool_call pattern with regex-like approach
-  // Find "name": "xxx", "arguments": {...} pattern
+  // Strategy 2 & 3: Extract JSON from text (when JSON is embedded in response)
+  // Find tool_call pattern and extract the value object
   if cleaned.contains("\"tool_call\"") {
-    // Extract the tool_call value
     if let Some(start) = cleaned.find("\"tool_call\"") {
-      // Find the opening brace after "tool_call":
-      let after_key = &cleaned[start..];
-      if let Some(brace_start) = after_key.find('{') {
-        let from_brace = &after_key[brace_start..];
-        // Find matching closing brace with string awareness
-        let mut brace_count = 0;
-        let mut in_string = false;
-        let mut end_idx = 0;
+      // Find the colon after "tool_call"
+      let after_key = &cleaned[start + "\"tool_call\"".len()..];
+      if let Some(colon_pos) = after_key.find(':') {
+        // Skip colon and any whitespace/braces until we find the value object
+        let after_colon = &after_key[colon_pos + 1..];
+        let trimmed = after_colon.trim_start();
 
-        for (i, c) in from_brace.chars().enumerate() {
-          match c {
-            '"' if !in_string => in_string = true,
-            '"' if in_string => in_string = false,
-            '{' if !in_string => brace_count += 1,
-            '}' if !in_string => {
-              brace_count -= 1;
-              if brace_count == 0 {
-                end_idx = i + 1;
-                break;
+        if trimmed.starts_with('{') {
+          // Found the value object - now find matching closing brace
+          let from_brace = &trimmed[1..]; // Skip opening {
+          let mut brace_count = 1;
+          let mut in_string = false;
+          let mut end_idx = 0;
+
+          for (i, c) in from_brace.chars().enumerate() {
+            match c {
+              '"' if !in_string => in_string = true,
+              '"' if in_string => in_string = false,
+              '{' if !in_string => brace_count += 1,
+              '}' if !in_string => {
+                brace_count -= 1;
+                if brace_count == 0 {
+                  end_idx = i + 1;
+                  break;
+                }
               }
+              _ => {}
             }
-            _ => {}
           }
-        }
 
-        if end_idx > 0 {
-          let tool_call_json = &from_brace[..end_idx];
-          eprintln!("[MCP] Extracted tool_call JSON: {}", tool_call_json);
+          if end_idx > 0 {
+            let tool_call_json = &from_brace[..end_idx];
+            eprintln!("[MCP] Extracted tool_call JSON: {}", tool_call_json);
 
-          if let Ok(tc) = serde_json::from_str::<Value>(tool_call_json) {
-            eprintln!("[MCP] Found tool_call: {}", tc);
-            return Ok(
-              serde_json::from_value(tc.clone())
-                .map_err(|e| AgentError::ToolParse(e.to_string()))?,
-            );
+            if let Ok(tc) = serde_json::from_str::<Value>(tool_call_json) {
+              eprintln!("[MCP] Found tool_call: {}", tc);
+              return Ok(
+                serde_json::from_value(tc.clone())
+                  .map_err(|e| AgentError::ToolParse(e.to_string()))?,
+              );
+            }
           }
         }
       }

@@ -150,7 +150,7 @@ async fn run_agent(
       AgentStep::Chunk(chunk) => {
         if !is_streaming {
           is_streaming = true;
-          intermediate_steps.clear();
+          // Don't clear intermediate_steps - preserve them for the final answer
         }
         final_response.push_str(&chunk);
       }
@@ -162,19 +162,46 @@ async fn run_agent(
     // When stream completes, save final message
     if stream_complete {
       if !final_response.is_empty() {
-        eprintln!("=== STREAM COMPLETE, SAVING FINAL MESSAGE ===");
+        eprintln!("=== STREAM COMPLETE, SAVING MESSAGES ===");
 
         let current_msgs = messages.read().clone();
         if let Some(pos) = current_msgs.iter().position(|m| m.id == assistant_msg_id) {
+          // First, update the intermediate steps message
           let mut updated = current_msgs;
-          updated[pos].content = final_response.clone();
+          updated[pos].content = intermediate_steps.join("\n");
           messages.set(updated);
 
+          // Then, create a new message for the final response
+          let now_millis_final = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+          let now_secs_final = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+          *msg_counter += 1;
+          let final_msg_id = format!("msg-{}-{}", now_millis_final, msg_counter);
+
+          messages.push(ChatMessage {
+            id: final_msg_id.clone(),
+            role: "assistant".to_string(),
+            content: final_response.clone(),
+            timestamp: now_secs_final,
+          });
+
+          // Save both messages to history
           chat_history.write().add_message(HistoryMessage {
             id: assistant_msg_id.clone(),
             role: "assistant".to_string(),
-            content: final_response.clone(),
+            content: intermediate_steps.join("\n"),
             timestamp: now_secs,
+          });
+          chat_history.write().add_message(HistoryMessage {
+            id: final_msg_id.clone(),
+            role: "assistant".to_string(),
+            content: final_response.clone(),
+            timestamp: now_secs_final,
           });
           let history_clone = (*chat_history.read()).clone();
           let _ = chat_history.read().save();
@@ -329,6 +356,14 @@ pub fn use_regenerate_coroutine(
         let history_clone = (*chat_history.read()).clone();
         let _ = chat_history.read().save();
         chat_history.set(history_clone);
+
+        // Immediately sync UI to remove old messages before starting generation
+        let current_msgs: Vec<ChatMessage> = chat_history
+          .read()
+          .get_current_session()
+          .map(|s| s.messages.iter().cloned().map(Into::into).collect())
+          .unwrap_or_default();
+        messages.set(current_msgs);
 
         // Build API messages from truncated history
         let api_messages: Vec<crate::services::ChatMessage> = chat_history
@@ -609,47 +644,79 @@ pub fn use_chat_coroutine_with_prefix(
 
 /// Format thinking content: show text directly, filter out JSON tool calls
 fn format_thinking_content(content: &str) -> String {
-  let lines: Vec<&str> = content.lines().collect();
   let mut result = Vec::new();
-  let mut in_json = false;
-  let mut json_lines = Vec::new();
+  let mut in_tool_call = false;
+  let mut brace_depth = 0;
 
-  for line in lines {
-    let trimmed = line.trim();
-
-    // Detect JSON start
-    if trimmed.contains("{\"tool_call\"")
-      || trimmed.contains("\"tool_call\"")
-      || (trimmed.starts_with("{")
-        && (trimmed.contains("\"name\"") || trimmed.contains("\"arguments\"")))
-    {
-      in_json = true;
-      json_lines.push(line);
-      continue;
+  for line in content.lines() {
+    if in_tool_call {
+      // Continue processing multi-line JSON
+      for c in line.chars() {
+        if c == '{' {
+          brace_depth += 1;
+        } else if c == '}' {
+          brace_depth -= 1;
+          if brace_depth == 0 {
+            in_tool_call = false;
+            eprintln!("[FILTERED TOOL CALL END]");
+            break;
+          }
+        }
+      }
+      continue; // Skip entire line while in tool call
     }
 
-    if in_json {
-      json_lines.push(line);
-      if trimmed.contains("}") {
-        in_json = false;
-        // Log filtered JSON for debugging
-        eprintln!("[FILTERED JSON TOOL CALL] {}", json_lines.join("\n"));
-        json_lines.clear();
+    // Check for tool_call pattern
+    if let Some(start_idx) = line.find("{\"tool_call\"") {
+      // Count braces to find where JSON ends
+      let mut depth = 0;
+      let mut found_end = false;
+      let chars: Vec<char> = line.chars().collect();
+
+      for i in start_idx..chars.len() {
+        if chars[i] == '{' {
+          depth += 1;
+        } else if chars[i] == '}' {
+          depth -= 1;
+          if depth == 0 {
+            found_end = true;
+            eprintln!("[FILTERED TOOL CALL (single line)]");
+            // Keep content before the tool call
+            if start_idx > 0 {
+              let before = line[..start_idx].trim();
+              if !before.is_empty() {
+                result.push(before.to_string());
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      if !found_end {
+        // Multi-line JSON, start filtering
+        in_tool_call = true;
+        brace_depth = 1;
+        // Keep content before the tool call
+        if start_idx > 0 {
+          let before = line[..start_idx].trim();
+          if !before.is_empty() {
+            result.push(before.to_string());
+          }
+        }
       }
       continue;
     }
 
-    if !trimmed.is_empty() {
+    // Normal line
+    if !line.trim().is_empty() {
       result.push(line.to_string());
     }
   }
 
-  // Handle unclosed JSON (shouldn't happen, but log if it does)
-  if !json_lines.is_empty() {
-    eprintln!(
-      "[FILTERED JSON TOOL CALL - UNCLOSSED] {}",
-      json_lines.join("\n")
-    );
+  // Handle unclosed tool call
+  if in_tool_call {
+    eprintln!("[WARNING] Unclosed tool call JSON at end of content");
   }
 
   format!("• {}", result.join("\n"))

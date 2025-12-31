@@ -217,7 +217,7 @@ pub fn PlainTextContent(
   class: String,
 ) -> Element {
   rsx! {
-    p {
+    span {
       class: format!("whitespace-pre-wrap break-words {}", class),
       {content}
     }

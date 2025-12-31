@@ -278,7 +278,7 @@ pub fn use_chat_coroutine(
   use_coroutine(move |mut rx: UnboundedReceiver<String>| {
     let mut messages = messages.clone();
     let mut chat_history = chat_history.clone();
-    let mut is_running = is_agent_running.clone();
+    let is_running = is_agent_running.clone();
     let mut msg_counter: u64 = 0;
     async move {
       while let Some(text) = rx.next().await {
@@ -337,7 +337,7 @@ pub fn use_regenerate_coroutine(
   use_coroutine(move |mut rx: UnboundedReceiver<(String, String)>| {
     let mut messages = messages.clone();
     let mut chat_history = chat_history.clone();
-    let mut is_running = is_agent_running.clone();
+    let is_running = is_agent_running.clone();
     let mut msg_counter: u64 = 0;
     async move {
       while let Some((message_id, new_content)) = rx.next().await {

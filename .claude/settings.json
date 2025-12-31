@@ -1,6 +1,9 @@
 {
   "includeCoAuthoredBy": false,
+  "model": "opus",
+  "alwaysThinkingEnabled": true,
   "permissions": {
+    "defaultMode": "acceptEdits",
     "disableBypassPermissionsMode": "disable",
     "allow": [
       "WebSearch",
@@ -12,23 +15,36 @@
       "mcp__context7__query-docs",
       "mcp__MiniMax__web_search",
       "mcp__MiniMax__understand_image",
+      "Bash(find:*)",
+      "Bash(fd:*)",
       "Bash(dir:*)",
       "Bash(less:*)",
+      "Bash(cat:*)",
+      "Bash(sed:*)",
+      "Bash(mv:*)",
+      "Bash(mkdir:*)",
+      "Bash(wc:*)",
       "Bash(git log:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
+      "Bash(git mv:*)",
       "Bash(cargo check:*)",
       "Bash(cargo clippy:*)",
       "Bash(cargo tree:*)",
       "Bash(cargo doc:*)",
+      "Bash(cargo run:*)",
+      "Bash(pnpm tailwindcss:*)",
+      "Command(commit)",
       "Command(add-rule)",
       "Command(analyze-doc)",
       "Command(deslop)",
       "Command(response-style)",
       "Skill(code-reviewer)",
+      "Skill(debugging-assistant)",
       "Skill(git-analyzer)",
       "Skill(product-manager)",
-      "Skill(debugging-assistant)"
+      "Skill(ui-ux-principles)",
+      "Skill(context-engineering)"
     ],
     "ask": [],
     "deny": [
@@ -45,8 +61,20 @@
       "Read(./**/credentials/**)"
     ]
   },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
   "statusLine": {
     "type": "command",
     "command": "powershell -File \".claude/custom/statusline.ps1\""
+  },
+  "env": {
+    "MAX_THINKING_TOKENS": "31999",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "8192",
+    "DISABLE_PROMPT_CACHING": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1",
+    "API_TIMEOUT_MS": "3000000"
   }
 }

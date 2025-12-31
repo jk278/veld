@@ -86,7 +86,7 @@ pub async fn chat_with_tools(
   let client = AiClient::new()?;
 
   // Connect to MCP servers concurrently
-  let (sync_tx, mut sync_rx) = oneshot::channel();
+  let (sync_tx, sync_rx) = oneshot::channel();
   let config = AppConfig::load().map_err(|e| AgentError::Ai(e.to_string()))?;
   let server_configs: Vec<(String, String, Vec<String>, Option<std::collections::HashMap<String, String>>)> = config
     .mcp

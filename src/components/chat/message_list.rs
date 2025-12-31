@@ -380,14 +380,3 @@ fn AssistantMessageBubble(
   }
 }
 
-/// Format timestamp for display
-fn format_timestamp(timestamp: u64) -> String {
-  use chrono::{DateTime, Local, Utc};
-  let dt = DateTime::<Utc>::from_timestamp(timestamp as i64, 0);
-  if let Some(utc) = dt {
-    let local: DateTime<Local> = utc.into();
-    local.format("%H:%M").to_string()
-  } else {
-    "??:??".to_string()
-  }
-}

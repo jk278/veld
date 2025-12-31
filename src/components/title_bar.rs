@@ -20,13 +20,13 @@ pub fn TitleBar() -> Element {
 
   rsx! {
     div {
-      class: "flex items-center justify-between h-8 bg-bg-secondary select-none shrink-0",
+      class: "flex items-center justify-between h-10 bg-bg-secondary select-none shrink-0",
       // app-region: drag makes WebView2 treat this as non-client area (enables drag, double-click maximize, right-click system menu)
       style: "user-select: none; app-region: drag;",
 
       // Left: Navigation (draggable via CSS)
       div {
-        class: "flex items-center gap-1 flex-1 min-w-0",
+        class: "flex items-center gap-1 flex-1 min-w-0 pl-2",
         // Double-click to maximize
         ondoubleclick: move |_| { window_dblclick.toggle_maximized(); },
 
@@ -88,20 +88,22 @@ fn NavLink(
 ) -> Element {
   let is_active = current == route;
 
+  // NOTE: Compute class outside rsx! to avoid Dioxus hot reload bugs
+  let nav_class = if is_active {
+    "text-primary bg-gray-200 dark:bg-gray-800 border border-border/50 hover:bg-bg-tertiary/40 hover:border-border".to_string()
+  } else {
+    "text-text-secondary hover:text-text-primary hover:bg-gray-200 dark:hover:bg-gray-700 border border-transparent".to_string()
+  };
+  let base_class = "px-2 py-1 text-base rounded-md transition-all duration-200";
+  let full_class = format!("{} {}", base_class, nav_class);
+
   rsx! {
     div {
       // no-drag allows link clicks
       style: "app-region: no-drag;",
       Link {
         to: route.clone(),
-        class: format!(
-          "px-3 py-1 text-sm rounded-md transition-all duration-200 {}",
-          if is_active {
-            "text-text-primary bg-bg-tertiary/50"
-          } else {
-            "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary/30"
-          }
-        ),
+        class: "{full_class}",
         "{label}"
       }
     }
@@ -116,20 +118,22 @@ fn WindowButton(
   #[props(default = false)] close: bool,
   onclick: EventHandler<MouseEvent>,
 ) -> Element {
+  // NOTE: Compute class outside rsx! to avoid Dioxus hot reload bugs
+  let hover_class = if close {
+    "hover:bg-red-600 hover:text-white".to_string()
+  } else {
+    "hover:bg-gray-200 hover:text-text-primary border border-transparent hover:border-border dark:hover:bg-gray-700".to_string()
+  };
+  let base_class = "h-10 w-10 flex items-center justify-center text-text-secondary transition-all duration-150";
+  let full_class = format!("{} {}", base_class, hover_class);
+
   rsx! {
     button {
-      class: format!(
-        "h-8 w-11 flex items-center justify-center text-text-secondary \
-        transition-all duration-150 {}",
-        if close {
-          "hover:bg-red-600 hover:text-white"
-        } else {
-          "hover:bg-bg-tertiary hover:text-text-primary"
-        }
-      ),
+      class: "{full_class}",
       title: "{tooltip}",
       onclick: move |e| { onclick.call(e); },
-      span { class: "text-base leading-none", "{icon}" }
+      // Use flex centering instead of transform for better cross-font rendering
+      span { class: "text-xl leading-none", "{icon}" }
     }
   }
 }

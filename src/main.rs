@@ -175,8 +175,9 @@ fn App() -> Element {
     // NOTE: FOUC (Flash of Unstyled Content) on startup
     //
     // Known limitations causing FOUC:
-    // 1. Tailwind CSS v4 scanner cannot parse .rs files with rsx syntax (class: "...")
-    //    - Generates full ~57KB tailwind.css instead of optimized subset
+    // 1. Tailwind CSS v4 scanner has limited support for Rust `class: "..."` syntax
+    //    - Can detect most static class names, generates ~64KB CSS (256 selectors)
+    //    - Verified: Used classes like .max-w-4xl, .bg-bg-surface, .flex are present
     //    - See: tailwind.config.js for details
     //
     // 2. document::Stylesheet loads asynchronously in WebView
@@ -192,7 +193,7 @@ fn App() -> Element {
     //
     // Future directions to monitor:
     // - Official Dioxus CSS loading improvements
-    // - Tailwind v4 .rs file support
+    // - Tailwind v4 @source directive for better Rust support
     // - Alternative: safelist, critical CSS extraction, or Tailwind v3
     document::Stylesheet {
       href: TAILWIND_CSS,

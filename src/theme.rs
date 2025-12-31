@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub struct ThemeContext {
   pub theme_mode: Signal<ThemeMode>,
-  pub is_dark: Signal<bool>,
+  pub is_dark: ReadSignal<bool>,
   pub zoom_level: Signal<f64>,
   pub config: Arc<Mutex<AppConfig>>,
 }
@@ -30,7 +30,6 @@ pub fn init_theme() -> ThemeContext {
   let initial_zoom = config.lock().unwrap().ui.zoom_level;
   let theme_mode = use_signal(move || initial_mode);
   let mut system_theme_signal = use_signal(|| SystemTheme::Dark);
-  let mut is_dark = use_signal(|| matches!(initial_mode, ThemeMode::Dark));
   let zoom_level = use_signal(move || initial_zoom);
   let config_clone = config.clone();
 
@@ -55,16 +54,21 @@ pub fn init_theme() -> ThemeContext {
     }
   });
 
-  // Update is_dark when theme_mode or system_theme changes
-  use_effect(move || {
+  // Compute is_dark reactively (derived value)
+  let is_dark = use_memo(move || {
     let mode = theme_mode();
     let system_theme = system_theme_signal();
-    let dark = match mode {
+    match mode {
       ThemeMode::Dark => true,
       ThemeMode::Light => false,
       ThemeMode::System => matches!(system_theme, SystemTheme::Dark),
-    };
-    is_dark.set(dark);
+    }
+  });
+
+  // Apply theme class when dependencies change
+  use_effect(move || {
+    let mode = theme_mode();
+    let system_theme = system_theme_signal();
     apply_theme_class(mode, system_theme);
   });
 
@@ -82,7 +86,7 @@ pub fn init_theme() -> ThemeContext {
 
   ThemeContext {
     theme_mode,
-    is_dark,
+    is_dark: is_dark.into(),
     zoom_level,
     config,
   }
@@ -115,7 +119,7 @@ pub fn use_theme() -> Signal<ThemeMode> {
 
 /// Access is_dark from any component
 /// 从任何组件访问是否暗色模式
-pub fn use_is_dark() -> Signal<bool> {
+pub fn use_is_dark() -> ReadSignal<bool> {
   use_context::<ThemeContext>().is_dark
 }
 

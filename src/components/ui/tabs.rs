@@ -26,12 +26,10 @@ pub struct TabProps {
 #[component]
 pub fn Tab(props: TabProps) -> Element {
   let is_active = props.active_value == props.value;
-  let base_class = "nav-tab";
-  let active_class = if is_active { "active" } else { "" };
 
   rsx! {
     button {
-      class: "{base_class} {active_class}",
+      class: if is_active { "text-primary font-medium" } else { "text-text-secondary hover:text-text-primary" },
       onclick: move |_| props.onclick.call(props.value.clone()),
       disabled: props.disabled,
       if !props.icon.is_empty() {
@@ -126,7 +124,7 @@ pub fn NavTab(
   onclick: EventHandler<String>,
 ) -> Element {
   let is_active = active_value == value;
-  let base_class = "nav-tab";
+  let base_class = "settings-nav-item";
   let active_class = if is_active { "active" } else { "" };
 
   rsx! {

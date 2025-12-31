@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Configure dark mode to use .dark class instead of system preference */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: #1194a3;
   --color-success: #10b981;
@@ -7,8 +10,9 @@
   --color-error: #ef4444;
 
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f8f9fa;
-  --color-bg-surface: #f1f3f5;
+  --color-bg-secondary: #f1f3f5;
+  --color-bg-tertiary: #dee2e6;
+  --color-bg-surface: #f8f9fa;
 
   --color-text-primary: #212529;
   --color-text-secondary: #495057;
@@ -18,9 +22,6 @@
 
   --font-family-sans: "Inter", system-ui, sans-serif;
   --font-family-mono: "JetBrains Mono", "Consolas", monospace;
-
-  /* Sidebar width (controlled by Rust config) */
-  /* --sidebar-width is set dynamically from config file */
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -35,13 +36,13 @@
   }
 
   .dark {
-    --color-bg-primary: #050505;
-    --color-bg-secondary: #111827;
-    --color-bg-surface: #1a1a1a;
+    --color-bg-primary: #1e1e1e;
+    --color-bg-secondary: #252526;
+    --color-bg-surface: #2d2d30;
     --color-text-primary: #e8eaed;
     --color-text-secondary: #9aa0a6;
     --color-text-muted: #5f6368;
-    --color-border: #333333;
+    --color-border: #3e3e42;
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
@@ -173,13 +174,13 @@
     transform: translateY(-1px);
   }
 
-  /* Navigation tab styles */
-  .nav-tab {
-    @apply w-full text-left px-3 py-2 rounded-lg text-text-secondary hover:bg-bg-surface hover:text-text-primary transition-colors cursor-pointer;
+  /* Settings page navigation items */
+  .settings-nav-item {
+    @apply w-full text-left px-3 py-2.5 rounded-lg text-text-secondary hover:bg-bg-surface transition-colors cursor-pointer;
   }
 
-  .nav-tab.active {
-    @apply bg-bg-surface text-primary font-medium;
+  .settings-nav-item.active {
+    @apply bg-bg-surface text-primary font-medium border-l-2 border-primary;
   }
 
   /* Input field styles */

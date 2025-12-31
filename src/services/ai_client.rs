@@ -268,7 +268,7 @@ mod tests {
       user_message("Hello".to_string()),
     ];
 
-    let req = to_genai_request(messages).unwrap();
+    let req = AiClient::to_genai_request(messages).unwrap();
     assert_eq!(req.messages.len(), 2);
   }
 }

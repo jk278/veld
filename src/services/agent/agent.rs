@@ -1,55 +1,78 @@
-//! MCP Agent Service
-//! MCP 代理服务，负责工具调用与 AI 交互循环
+//! MCP Agent - Main entry point
+//! MCP 代理主入口
 
+use super::executor::execute_tool_call;
+use super::parser::parse_tool_call;
+use super::stream::stream_chat_response;
+use super::types::{AgentError, AgentStep, Result};
 use crate::config::AppConfig;
 use crate::services::ai_client::{AiClient, ChatMessage};
 use crate::services::mcp_client::{McpClient, McpTool};
 use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 
-/// Agent step for progressive rendering
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub enum AgentStep {
-  /// AI is thinking (short message, optional detailed content)
-  Thinking {
-    short: String,
-    content: Option<String>,
-  },
-  /// Connecting to MCP server
-  Connecting(String),
-  /// Calling a tool
-  ToolCall {
-    name: String,
-    args: serde_json::Value,
-  },
-  /// Tool execution result
-  ToolResult { name: String, result: String },
-  /// Streaming content chunk
-  Chunk(String),
-  /// Final answer (sent after stream completes)
-  Final,
+/// Build tools prompt for AI (generic MCP tool schema handling)
+fn build_tools_prompt(tools: &[McpTool]) -> String {
+  if tools.is_empty() {
+    return "No tools available.".to_string();
+  }
+
+  tools
+    .iter()
+    .map(|tool| {
+      // Generic JSON Schema parsing for any MCP tool
+      let schema = format_tool_schema(&tool.input_schema);
+      format!("**{}**: {}\n\n{}", tool.name, tool.description, schema)
+    })
+    .collect::<Vec<_>>()
+    .join("\n\n")
 }
 
-/// MCP agent error type
-#[derive(Debug, thiserror::Error)]
-pub enum AgentError {
-  #[error("MCP client error: {0}")]
-  McpClient(String),
-  #[error("AI error: {0}")]
-  Ai(String),
-  #[error("No tools available")]
-  NoToolsAvailable,
-  #[error("Tool parse error: {0}")]
-  ToolParse(String),
-}
+/// Format tool input schema for AI (generic JSON Schema handler)
+fn format_tool_schema(schema: &Value) -> String {
+  let properties = schema.get("properties");
+  let required = schema.get("required");
 
-pub type Result<T> = std::result::Result<T, AgentError>;
+  match properties {
+    Some(props) if props.is_object() => {
+      let required_list: Vec<String> = required
+        .and_then(|r| r.as_array())
+        .map(|arr| {
+          arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect()
+        })
+        .unwrap_or_default();
 
-/// Tool call request from AI
-#[derive(Debug, Clone, serde::Deserialize)]
-struct ToolCall {
-  name: String,
-  arguments: Value,
+      props
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(param_name, param_def)| {
+          let param_type = param_def
+            .get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("any");
+
+          let description = param_def
+            .get("description")
+            .and_then(|d| d.as_str())
+            .unwrap_or("");
+
+          let is_required = required_list.contains(param_name);
+          let req_marker = if is_required { " (required)" } else { "" };
+
+          format!(
+            "- `{}: {}`{}: {}",
+            param_name, param_type, req_marker, description
+          )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+    }
+    _ => "No parameters defined.".to_string(),
+  }
 }
 
 /// Process chat with MCP tool support
@@ -60,22 +83,14 @@ pub async fn chat_with_tools(
   tx: mpsc::UnboundedSender<AgentStep>,
   mut abort_rx: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<String> {
-  let client = AiClient::new().map_err(|e| AgentError::Ai(e.to_string()))?;
-  let config = AppConfig::load().map_err(|e| AgentError::McpClient(e.to_string()))?;
-  let enabled_servers = config.get_enabled_mcps();
+  let client = AiClient::new()?;
 
-  if enabled_servers.is_empty() {
-    return stream_chat_response(client, messages, tx, abort_rx.resubscribe()).await;
-  }
-
-  // Connect to all MCP servers and collect tools
-  let _ = tx.send(AgentStep::Connecting(format!(
-    "连接到 {} 个MCP服务器...",
-    enabled_servers.len()
-  )));
-
-  let (sync_tx, sync_rx) = oneshot::channel();
-  let server_configs: Vec<_> = enabled_servers
+  // Connect to MCP servers concurrently
+  let (sync_tx, mut sync_rx) = oneshot::channel();
+  let config = AppConfig::load().map_err(|e| AgentError::Ai(e.to_string()))?;
+  let server_configs: Vec<(String, String, Vec<String>, Option<std::collections::HashMap<String, String>>)> = config
+    .mcp
+    .servers
     .iter()
     .map(|s| {
       (
@@ -347,217 +362,4 @@ pub async fn chat_with_tools(
   eprintln!("[MCP] Maximum iterations reached");
   let _ = tx.send(AgentStep::Final);
   Err(AgentError::Ai("Maximum iterations reached".to_string()))
-}
-
-/// Build tools prompt for AI (generic MCP tool schema handling)
-fn build_tools_prompt(tools: &[McpTool]) -> String {
-  if tools.is_empty() {
-    return "No tools available.".to_string();
-  }
-
-  tools
-    .iter()
-    .map(|tool| {
-      // Generic JSON Schema parsing for any MCP tool
-      let schema = format_tool_schema(&tool.input_schema);
-      format!("**{}**: {}\n\n{}", tool.name, tool.description, schema)
-    })
-    .collect::<Vec<_>>()
-    .join("\n\n")
-}
-
-/// Format tool input schema for AI (generic JSON Schema handler)
-fn format_tool_schema(schema: &Value) -> String {
-  let properties = schema.get("properties");
-  let required = schema.get("required");
-
-  match properties {
-    Some(props) if props.is_object() => {
-      let required_list: Vec<String> = required
-        .and_then(|r| r.as_array())
-        .map(|arr| {
-          arr
-            .iter()
-            .filter_map(|v| v.as_str().map(String::from))
-            .collect()
-        })
-        .unwrap_or_default();
-
-      props
-        .as_object()
-        .unwrap()
-        .iter()
-        .map(|(param_name, param_def)| {
-          let param_type = param_def
-            .get("type")
-            .and_then(|t| t.as_str())
-            .unwrap_or("any");
-
-          let description = param_def
-            .get("description")
-            .and_then(|d| d.as_str())
-            .unwrap_or("");
-
-          let is_required = required_list.contains(param_name);
-          let req_marker = if is_required { " (required)" } else { "" };
-
-          format!(
-            "- `{}: {}`{}: {}",
-            param_name, param_type, req_marker, description
-          )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-    }
-    _ => "No parameters defined.".to_string(),
-  }
-}
-
-/// Parse tool call from AI response
-fn parse_tool_call(response: &str) -> Result<ToolCall> {
-  let response_trimmed = response.trim();
-
-  // Remove markdown code blocks
-  let cleaned = if response_trimmed.starts_with("```") {
-    let lines: Vec<&str> = response_trimmed.lines().collect();
-    let start_idx = if lines[0].contains("json") { 1 } else { 1 };
-    let end_idx = lines
-      .iter()
-      .rposition(|l| *l == "```")
-      .unwrap_or(lines.len());
-    lines[start_idx..end_idx].join("\n")
-  } else {
-    response_trimmed.to_string()
-  };
-
-  eprintln!(
-    "[MCP] Parsing tool call from (first 300 chars): {}...",
-    &cleaned.chars().take(300).collect::<String>()
-  );
-
-  // Strategy 1: Try direct parse (entire response is JSON)
-  if let Ok(v) = serde_json::from_str::<Value>(&cleaned) {
-    eprintln!(
-      "[MCP] Strategy 1: Direct JSON parse successful, has tool_call key: {}",
-      v.get("tool_call").is_some()
-    );
-    if let Some(tc) = v.get("tool_call") {
-      eprintln!("[MCP] Strategy 1: Found tool_call: {}", tc);
-      return Ok(
-        serde_json::from_value(tc.clone()).map_err(|e| AgentError::ToolParse(e.to_string()))?,
-      );
-    }
-  } else {
-    eprintln!("[MCP] Strategy 1: Not valid JSON, trying extraction...");
-  }
-
-  // Strategy 2 & 3: Extract JSON from text (when JSON is embedded in response)
-  // Find tool_call pattern and extract the value object
-  if cleaned.contains("\"tool_call\"") {
-    if let Some(start) = cleaned.find("\"tool_call\"") {
-      // Find the colon after "tool_call"
-      let after_key = &cleaned[start + "\"tool_call\"".len()..];
-      if let Some(colon_pos) = after_key.find(':') {
-        // Skip colon and any whitespace/braces until we find the value object
-        let after_colon = &after_key[colon_pos + 1..];
-        let trimmed = after_colon.trim_start();
-
-        if trimmed.starts_with('{') {
-          // Found the value object - now find matching closing brace
-          let from_brace = &trimmed[1..]; // Skip opening {
-          let mut brace_count = 1;
-          let mut in_string = false;
-          let mut end_idx = 0;
-
-          for (i, c) in from_brace.chars().enumerate() {
-            match c {
-              '"' if !in_string => in_string = true,
-              '"' if in_string => in_string = false,
-              '{' if !in_string => brace_count += 1,
-              '}' if !in_string => {
-                brace_count -= 1;
-                if brace_count == 0 {
-                  end_idx = i + 1;
-                  break;
-                }
-              }
-              _ => {}
-            }
-          }
-
-          if end_idx > 0 {
-            let tool_call_json = &from_brace[..end_idx];
-            eprintln!("[MCP] Extracted tool_call JSON: {}", tool_call_json);
-
-            if let Ok(tc) = serde_json::from_str::<Value>(tool_call_json) {
-              eprintln!("[MCP] Found tool_call: {}", tc);
-              return Ok(
-                serde_json::from_value(tc.clone())
-                  .map_err(|e| AgentError::ToolParse(e.to_string()))?,
-              );
-            }
-          }
-        }
-      }
-    }
-  }
-
-  eprintln!("[MCP] No tool_call found in response");
-  Err(AgentError::ToolParse("No tool call found".to_string()))
-}
-
-/// Execute a tool call
-fn execute_tool_call(tool_call: &ToolCall, clients: &mut [McpClient]) -> Result<String> {
-  // Find client with the tool and execute
-  for client in clients.iter_mut() {
-    match client.call_tool(&tool_call.name, tool_call.arguments.clone()) {
-      Ok(result) => {
-        return Ok(serde_json::to_string(&result).unwrap_or_default());
-      }
-      Err(_) => continue,
-    }
-  }
-
-  Err(AgentError::McpClient(format!(
-    "Tool not found: {}",
-    tool_call.name
-  )))
-}
-
-/// Stream chat response and send chunks via AgentStep
-async fn stream_chat_response(
-  client: AiClient,
-  messages: Vec<ChatMessage>,
-  tx: mpsc::UnboundedSender<AgentStep>,
-  mut abort_rx: tokio::sync::broadcast::Receiver<()>,
-) -> Result<String> {
-  let mut rx = client.chat(messages).await.map_err(|e| AgentError::Ai(e.to_string()))?;
-  let mut full_response = String::new();
-
-  loop {
-    tokio::select! {
-      _ = abort_rx.recv() => {
-        eprintln!("[MCP] Stream aborted");
-        let _ = tx.send(AgentStep::Final);
-        return Ok(String::new());
-      }
-      chunk_result = rx.recv() => {
-        match chunk_result {
-          Some(Ok(chunk)) => {
-            full_response.push_str(&chunk);
-            let _ = tx.send(AgentStep::Chunk(chunk));
-          }
-          Some(Err(e)) => {
-            eprintln!("[MCP] Stream error: {}", e);
-            let _ = tx.send(AgentStep::Final);
-            return Err(AgentError::Ai(e.to_string()));
-          }
-          None => {
-            let _ = tx.send(AgentStep::Final);
-            return Ok(full_response);
-          }
-        }
-      }
-    }
-  }
 }

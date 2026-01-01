@@ -1,4 +1,3 @@
-pub mod about;
 pub mod chat;
 pub mod code_block;
 pub mod command_palette;

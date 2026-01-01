@@ -33,7 +33,7 @@
       "Bash(cargo tree:*)",
       "Bash(cargo doc:*)",
       "Bash(cargo run:*)",
-      "Bash(pnpm tailwindcss:*)",
+      "Bash(pnpm tailwind:build)",
       "Command(commit)",
       "Command(add-rule)",
       "Command(analyze-doc)",

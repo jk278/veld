@@ -1,18 +1,15 @@
-//! About page
-//! 关于页面
+//! About tab in Settings
+//! 设置中的 About 标签页
 
-use crate::theme::use_theme;
 use dioxus::prelude::*;
 
-/// About component
+/// About tab component
 /// 显示应用信息
 #[component]
-pub fn About() -> Element {
-  let _theme_mode = use_theme();
-
+pub fn AboutTab() -> Element {
   rsx! {
     div {
-      class: "max-w-4xl mx-auto p-6 space-y-6",
+      class: "max-w-4xl space-y-6",
 
       h1 {
         class: "text-3xl font-light text-text-primary mb-8",

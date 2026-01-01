@@ -25,13 +25,13 @@ pub fn ChatSidebar(
       div {
         class: "p-4",
         button {
-          class: "w-full btn-primary flex items-center justify-center gap-2 whitespace-nowrap",
+          class: "w-full px-3 py-2 flex items-center justify-center gap-2 rounded-md text-sm font-medium text-text-secondary hover:bg-bg-secondary hover:text-text-primary transition-colors",
           onclick: on_new_chat,
           span {
-            class: "text-lg",
-            "➕"
+            class: "text-base",
+            "+"
           }
-          "New Chat"
+          "New chat"
         }
       }
 

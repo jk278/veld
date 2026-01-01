@@ -23,39 +23,16 @@
       "problemMatcher": []
     },
     {
-      "label": "Tailwind Watch",
-      "type": "shell",
-      "command": "pnpm",
-      "args": [
-        "tailwind"
-      ],
-      "presentation": {
-        "panel": "dedicated"
-      },
-      "problemMatcher": [],
-      "isBackground": true
-    },
-    {
-      "label": "Dioxus Serve",
+      "label": "Dev",
       "type": "shell",
       "command": "dx",
       "args": [
-        "serve",
-        "--hot-patch"
+        "serve"
       ],
-      "presentation": {
-        "panel": "dedicated"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Run Dev Setup",
-      "dependsOn": [
-        "Tailwind Watch",
-        "Dioxus Serve"
-      ],
-      "dependsOrder": "parallel",
       "group": "build",
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
       "problemMatcher": []
     },
     {

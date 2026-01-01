@@ -1,19 +1,26 @@
 {
+  // ========== AI Safety ==========
   "chat.agent.enabled": false,
-  "editor.detectIndentation": false,
-  "editor.insertSpaces": true,
-  "editor.tabSize": 2,
-  "editor.formatOnSave": true,
-  "files.eol": "\n",
-  "editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?·！￥…（）—【】、；：‘’“”，。《》？",
   "[dotenv]": {
     "editor.inlineSuggest.enabled": false
   },
-  "editor.fontFamily": "JetBrains Mono, LXGW WenKai Mono GB",
-  "editor.fontLigatures": true,
+  // ========== Editor Basics ==========
+  "editor.detectIndentation": false,
+  "editor.insertSpaces": true,
+  "editor.tabSize": 2,
+  "files.eol": "\n",
+  "editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?·！￥…（）—【】、；：‘’“”，。《》？",
+  // ========== Formatting ==========
+  "editor.formatOnSave": true,
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
   },
+  // ========== Typography ==========
+  "editor.fontFamily": "JetBrains Mono, LXGW WenKai Mono GB",
+  "editor.fontLigatures": true,
+  // ========== Rust ==========
   "rust-analyzer.checkOnSave": false,
-  "rust-analyzer.initializeStopped": true
+  "rust-analyzer.initializeStopped": true,
+  // ========== Tasks ==========
+  "task.autoDetect": "off"
 }

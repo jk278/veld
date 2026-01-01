@@ -176,11 +176,11 @@
 
   /* Settings page navigation items */
   .settings-nav-item {
-    @apply w-full text-left px-3 py-2.5 rounded-lg text-text-secondary hover:bg-bg-surface transition-colors cursor-pointer;
+    @apply w-full text-left px-3 py-2.5 rounded-lg text-text-secondary hover:bg-bg-primary transition-colors cursor-pointer;
   }
 
   .settings-nav-item.active {
-    @apply bg-bg-surface text-primary font-medium border-l-2 border-primary;
+    @apply bg-primary/10 text-primary font-medium;
   }
 
   /* Input field styles */
@@ -667,5 +667,10 @@
 
   .command-palette-empty {
     @apply px-4 py-8 text-center text-text-secondary;
+  }
+
+  /* Title bar navigation link - fake bold with text-shadow (no layout shift) */
+  .nav-link.is-active {
+    text-shadow: 0 0 0.5px currentColor, 0 0 0.5px currentColor;
   }
 }

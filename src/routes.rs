@@ -1,9 +1,7 @@
 //! Application routing definitions
 //! 使用类型安全的路由系统组织多页面应用
 
-use crate::components::{
-  about::About, home::Home, layout::AppLayout, result_viewer::ResultViewer, settings::Settings,
-};
+use crate::components::{home::Home, layout::AppLayout, result_viewer::ResultViewer, settings::Settings};
 use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq, Routable)]
@@ -16,6 +14,4 @@ pub enum Route {
   Settings,
   #[route("/result/:session_id")]
   ResultViewer { session_id: String },
-  #[route("/about")]
-  About,
 }

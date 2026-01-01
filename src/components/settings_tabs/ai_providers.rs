@@ -28,14 +28,6 @@ pub fn AiProvidersTab(
         "AI Providers"
       }
 
-      // API compatibility notice
-      InfoCard {
-        title: "Universal AI Provider Support".to_string(),
-        message: "Supports OpenAI & Anthropic protocols. Choose the adapter type that matches your provider's API.".to_string(),
-        icon: "⚡".to_string(),
-        variant: InfoCardVariant::Info,
-      }
-
       // Add new provider button
       div {
         class: "flex justify-end mb-4",

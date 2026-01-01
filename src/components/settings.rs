@@ -2,10 +2,11 @@
 //! 设置页面组件 - 使用 UI 组件库重构
 
 use crate::components::settings_tabs::{
-  AiProvidersTab, AppearanceTab, McpServersTab, QuickToolsTab, ShortcutsTab,
+  AboutTab, AiProvidersTab, AppearanceTab, McpServersTab, QuickToolsTab, ShortcutsTab,
 };
 use crate::components::ui::*;
 use crate::config::{AppConfig, McpServerConfig, ProviderConfig};
+use crate::hooks::{RESPONSIVE_BREAKPOINT, use_window_size};
 use dioxus::prelude::*;
 
 /// Settings tab
@@ -17,6 +18,7 @@ pub enum SettingsTab {
   Appearance,
   Shortcuts,
   QuickTools,
+  About,
 }
 
 impl SettingsTab {
@@ -27,6 +29,7 @@ impl SettingsTab {
       SettingsTab::Appearance => "appearance",
       SettingsTab::Shortcuts => "shortcuts",
       SettingsTab::QuickTools => "quick_tools",
+      SettingsTab::About => "about",
     }
   }
 }
@@ -36,6 +39,7 @@ impl SettingsTab {
 #[component]
 pub fn Settings() -> Element {
   let mut active_tab = use_signal(|| SettingsTab::AI);
+  let window_width = use_window_size();
 
   // Sidebar collapse state (persisted to config file)
   let mut nav_collapsed = use_signal(|| {
@@ -52,12 +56,15 @@ pub fn Settings() -> Element {
     }
   });
 
-  // Tab switch handler (no auto-collapse)
+  // Tab switch handler - only collapse on narrow screens
   let tab_switch = |tab: SettingsTab| {
     let mut collapsed = nav_collapsed.clone();
+    let width = window_width.clone();
     move |_| {
       active_tab.set(tab);
-      collapsed.set(true);
+      if width() < RESPONSIVE_BREAKPOINT {
+        collapsed.set(true);
+      }
     }
   };
 
@@ -93,6 +100,7 @@ pub fn Settings() -> Element {
       SettingsTab::Appearance => ("Appearance", "🎨"),
       SettingsTab::Shortcuts => ("Shortcuts", "⌨️"),
       SettingsTab::QuickTools => ("Quick Tools", "🚀"),
+      SettingsTab::About => ("About", "ℹ️"),
     }
   };
   let (current_label, current_icon) = tab_info(active_tab());
@@ -144,6 +152,13 @@ pub fn Settings() -> Element {
               active_value: active_tab().as_str().to_string(),
               icon: "🚀".to_string(),
               onclick: tab_switch(SettingsTab::QuickTools),
+            }
+            NavTab {
+              label: "About".to_string(),
+              value: "about".to_string(),
+              active_value: active_tab().as_str().to_string(),
+              icon: "ℹ️".to_string(),
+              onclick: tab_switch(SettingsTab::About),
             }
           }
         }
@@ -246,6 +261,11 @@ fn render_active_tab(
     },
     SettingsTab::QuickTools => rsx! {
       QuickToolsTab {
+
+      }
+    },
+    SettingsTab::About => rsx! {
+      AboutTab {
 
       }
     },

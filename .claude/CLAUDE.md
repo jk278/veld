@@ -14,6 +14,10 @@
 
 > **注意**: dioxus-desktop 已内置 tao、wry、tray-icon、global-hotkey、muda、tokio 等依赖，无需单独添加
 
+### 🔨 开发注意事项
+
+> **样式修改**: 修改 `input.css` 后需执行 `pnpm tailwind:build` 重新编译样式
+
 ### 📅 实施阶段
 
 #### 已完成

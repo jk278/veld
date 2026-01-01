@@ -41,11 +41,6 @@ pub fn TitleBar() -> Element {
           current: current_route.clone(),
           label: "Settings",
         }
-        NavLink {
-          route: Route::About,
-          current: current_route.clone(),
-          label: "About",
-        }
 
         div { class: "flex-1" }  // Spacer (extends drag area)
       }
@@ -90,12 +85,11 @@ fn NavLink(
 
   // NOTE: Compute class outside rsx! to avoid Dioxus hot reload bugs
   let nav_class = if is_active {
-    "text-primary bg-gray-200 dark:bg-gray-800 border border-border/50 hover:bg-bg-tertiary/40 hover:border-border".to_string()
+    "is-active bg-gray-200 dark:bg-gray-800 border border-border/50 hover:bg-bg-tertiary/40 hover:border-border"
   } else {
-    "text-text-secondary hover:text-text-primary hover:bg-gray-200 dark:hover:bg-gray-700 border border-transparent".to_string()
+    "hover:bg-gray-200 dark:hover:bg-gray-700 border border-transparent"
   };
-  let base_class = "px-2 py-1 text-base rounded-md transition-all duration-200";
-  let full_class = format!("{} {}", base_class, nav_class);
+  let full_class = format!("nav-link px-2 py-1 text-base rounded-md transition-all duration-200 text-text-primary hover:text-primary {}", nav_class);
 
   rsx! {
     div {

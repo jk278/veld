@@ -6,13 +6,13 @@ pub mod header;
 pub mod hooks;
 pub mod input_area;
 pub mod message_list;
-pub mod sessions;
+pub mod sidebar;
 
 // Re-export commonly used components
 pub use header::ChatHeader;
 pub use input_area::{ChatInput, InputArea};
 pub use message_list::{EmptyState, MessageList, MessageEdit};
-pub use sessions::ChatSidebar;
+pub use sidebar::ChatSidebar;
 
 // Re-export hooks
 pub use hooks::{

@@ -49,6 +49,7 @@ fn main() {
     .unwrap_or(crate::hooks::DEFAULT_WINDOW_SIZE);
 
   // 配置窗口：隐藏原生标题栏，使用自定义标题栏
+  // NOTE: decorations(false) 导致 resize 区域仅 1-2px (tao 限制，Electron 有 titleBarStyle: "custom")
   let mut window = WindowBuilder::new()
     .with_title("Veld - AI Toolkit")
     .with_decorations(false)  // Hide native titlebar for custom title bar

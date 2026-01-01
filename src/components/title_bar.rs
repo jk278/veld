@@ -1,7 +1,7 @@
 //! Custom window title bar with drag region and window controls
 //! 自定义窗口标题栏，支持拖拽区域和窗口控制按钮
 
-use crate::components::icons::{CloseIcon, MaximizeIcon, MinimizeIcon};
+use crate::components::icons::{ChatIcon, CloseIcon, MaximizeIcon, MinimizeIcon, SettingsIcon};
 use crate::routes::Route;
 use dioxus::prelude::*;
 use dioxus_router::hooks::use_navigator;
@@ -27,7 +27,7 @@ pub fn TitleBar() -> Element {
 
       // Left: Navigation (draggable via CSS)
       div {
-        class: "flex items-center gap-1 flex-1 min-w-0 pl-2",
+        class: "flex items-center gap-3 flex-1 min-w-0 pl-4",
         // Double-click to maximize
         ondoubleclick: move |_| { window_dblclick.toggle_maximized(); },
 
@@ -35,12 +35,14 @@ pub fn TitleBar() -> Element {
         NavLink {
           route: Route::Home,
           current: current_route.clone(),
-          label: "Chat",
+          tooltip: "Chat",
+          ChatIcon { class: "w-4 h-4" },
         }
         NavLink {
           route: Route::Settings,
           current: current_route.clone(),
-          label: "Settings",
+          tooltip: "Settings",
+          SettingsIcon { class: "w-4 h-4" },
         }
 
         div { class: "flex-1" }  // Spacer (extends drag area)
@@ -76,30 +78,37 @@ pub fn TitleBar() -> Element {
 }
 
 /// Navigation link in title bar (non-draggable)
+///
+/// Design principles:
+/// - Match window buttons: h-10 (40px) full-height square
+/// - Large click area: modern, easy to use
+/// - Subtle feedback: hover fills entire square
 #[component]
 fn NavLink(
   route: Route,
   current: Route,
-  label: String,
+  tooltip: String,
+  children: Element,
 ) -> Element {
   let is_active = current == route;
 
-  // NOTE: Compute class outside rsx! to avoid Dioxus hot reload bugs
+  // Match WindowButton pattern: h-10 w-10 square
   let nav_class = if is_active {
-    "is-active bg-gray-200 dark:bg-gray-800 border border-border/50 hover:bg-bg-tertiary/40 hover:border-border"
+    // Active: solid background with elevation
+    "bg-bg-surface shadow-sm"
   } else {
-    "hover:bg-gray-200 dark:hover:bg-gray-700 border border-transparent"
+    // Default: visible hover feedback
+    "hover:bg-gray-200 dark:hover:bg-gray-700"
   };
-  let full_class = format!("nav-link px-2 py-1 text-base rounded-md transition-all duration-200 text-text-primary hover:text-primary {}", nav_class);
 
   rsx! {
     div {
-      // no-drag allows link clicks
       style: "app-region: no-drag;",
       Link {
         to: route.clone(),
-        class: "{full_class}",
-        "{label}"
+        class: "nav-link h-10 w-10 flex items-center justify-center transition-all duration-150 text-text-secondary hover:text-text-primary {nav_class}",
+        title: "{tooltip}",
+        {children}
       }
     }
   }

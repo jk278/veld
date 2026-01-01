@@ -17,6 +17,8 @@
 ### 🔨 开发注意事项
 
 > **样式修改**: 修改 `input.css` 后需执行 `pnpm tailwind:build` 重新编译样式
+>
+> **代码检查**: 使用 `pnpm check` 代替 `cargo check`，自动先编译 Tailwind CSS
 
 ### 📅 实施阶段
 

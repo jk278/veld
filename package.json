@@ -6,6 +6,7 @@
   "scripts": {
     "tailwind": "pnpm tailwindcss -i input.css -o assets/tailwind.css -w",
     "tailwind:build": "pnpm tailwindcss -i input.css -o assets/tailwind.css --minify",
+    "check": "pnpm tailwind:build && cargo check",
     "build": "pnpm tailwind:build && dx build"
   },
   "devDependencies": {

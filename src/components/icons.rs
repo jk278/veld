@@ -6,18 +6,40 @@
 //! - Semantic naming: use descriptive names (SettingsIcon, CheckIcon, etc.)
 
 use dioxus::prelude::*;
-use dioxus_free_icons::{icons::fa_solid_icons, Icon};
+use dioxus_free_icons::{icons::fa_regular_icons, icons::fa_solid_icons, Icon};
 
-/// Settings gear icon
+/// Chat/comment icon (outlined/regular)
 #[component]
-pub fn SettingsIcon(class: Option<&'static str>) -> Element {
+pub fn ChatIcon(class: Option<&'static str>) -> Element {
     rsx! {
         Icon {
             class: class.unwrap_or("w-5 h-5"),
             width: 20,
             height: 20,
             fill: "currentColor",
-            icon: fa_solid_icons::FaGear,
+            icon: fa_regular_icons::FaComment,
+        }
+    }
+}
+
+/// Settings gear icon (outlined - custom SVG)
+#[component]
+pub fn SettingsIcon(class: Option<&'static str>) -> Element {
+    rsx! {
+        svg {
+            class: class.unwrap_or("w-5 h-5"),
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            "stroke-width": "2",
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
+            path {
+                d: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
+            }
+            path {
+                d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z",
+            }
         }
     }
 }

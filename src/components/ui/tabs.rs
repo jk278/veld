@@ -115,12 +115,14 @@ pub fn Tabs(props: TabsProps) -> Element {
 }
 
 /// Navigation tab (simplified for settings sidebar)
+/// Supports both emoji strings and SVG icon components
 #[component]
 pub fn NavTab(
   label: String,
   value: String,
   active_value: String,
   #[props(default)] icon: String,
+  #[props(default)] icon_element: Option<Element>,
   onclick: EventHandler<String>,
 ) -> Element {
   let is_active = active_value == value;
@@ -131,7 +133,12 @@ pub fn NavTab(
     button {
       class: "{base_class} {active_class}",
       onclick: move |_| onclick.call(value.clone()),
-      if !icon.is_empty() {
+      if let Some(icon_el) = icon_element {
+        span {
+          class: "mr-2",
+          {icon_el}
+        }
+      } else if !icon.is_empty() {
         span {
           class: "mr-2",
           "{icon}"

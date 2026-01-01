@@ -1,6 +1,7 @@
 //! Card components for content grouping
 //! 卡片组件 - 内容分组容器
 
+use crate::components::icons::{CheckIcon, InfoIcon, XIcon};
 use dioxus::prelude::*;
 
 /// Card container
@@ -109,7 +110,7 @@ pub struct InfoCardProps {
   title: String,
   /// Card message/description
   message: String,
-  /// Icon emoji
+  /// Icon emoji (legacy, for backwards compatibility)
   #[props(default)]
   icon: String,
   /// Card variant
@@ -149,12 +150,12 @@ impl InfoCardVariant {
     }
   }
 
-  fn default_icon(&self) -> &'static str {
+  fn default_icon(&self) -> Element {
     match self {
-      InfoCardVariant::Info => "ℹ️",
-      InfoCardVariant::Warning => "⚠️",
-      InfoCardVariant::Success => "✅",
-      InfoCardVariant::Error => "❌",
+      InfoCardVariant::Info => rsx!(InfoIcon { class: "w-5 h-5" }),
+      InfoCardVariant::Warning => rsx!(span { class: "text-xl", "!" }),
+      InfoCardVariant::Success => rsx!(CheckIcon { class: "w-5 h-5" }),
+      InfoCardVariant::Error => rsx!(XIcon { class: "w-5 h-5" }),
     }
   }
 }
@@ -162,18 +163,21 @@ impl InfoCardVariant {
 /// Information card with icon
 #[component]
 pub fn InfoCard(props: InfoCardProps) -> Element {
-  let icon = if props.icon.is_empty() {
-    props.variant.default_icon()
-  } else {
-    props.icon.as_str()
-  };
+  let default_icon = props.variant.default_icon();
 
   rsx! {
     div {
       class: "{props.variant.bg_color()} border {props.variant.border_color()} rounded-lg p-4 flex items-start gap-3 {props.class}",
-      span {
-        class: "text-xl mt-0.5",
-        "{icon}"
+      if props.icon.is_empty() {
+        div {
+          class: "mt-0.5 flex items-center",
+          {default_icon}
+        }
+      } else {
+        span {
+          class: "text-xl mt-0.5",
+          "{props.icon}"
+        }
       }
       div {
         class: "flex-1",

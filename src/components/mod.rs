@@ -2,6 +2,7 @@ pub mod chat;
 pub mod code_block;
 pub mod command_palette;
 pub mod home;
+pub mod icons;
 pub mod layout;
 pub mod markdown;
 pub mod result_viewer;

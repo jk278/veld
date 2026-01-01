@@ -176,7 +176,7 @@
 
   /* Settings page navigation items */
   .settings-nav-item {
-    @apply w-full text-left px-3 py-2.5 rounded-lg text-text-secondary hover:bg-bg-primary transition-colors cursor-pointer;
+    @apply w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-bg-primary transition-colors cursor-pointer;
   }
 
   .settings-nav-item.active {

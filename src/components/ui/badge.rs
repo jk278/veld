@@ -1,6 +1,7 @@
 //! Badge components for status indicators
 //! 徽章组件 - 状态指示器
 
+use crate::components::icons::{CheckIcon, InfoIcon, XIcon};
 use dioxus::prelude::*;
 
 /// Badge component
@@ -113,14 +114,14 @@ impl StatusType {
     }
   }
 
-  fn icon(&self) -> &'static str {
+  fn icon(&self) -> Element {
     match self {
-      StatusType::Ready => "✓",
-      StatusType::Disabled => "○",
-      StatusType::Warning => "⚠️",
-      StatusType::Error => "✕",
-      StatusType::Loading => "⋯",
-      StatusType::Info => "ℹ️",
+      StatusType::Ready => rsx!(CheckIcon { class: "w-3 h-3" }),
+      StatusType::Disabled => rsx!(span { "○" }),
+      StatusType::Warning => rsx!(span { "!" }),
+      StatusType::Error => rsx!(XIcon { class: "w-3 h-3" }),
+      StatusType::Loading => rsx!(span { "⋯" }),
+      StatusType::Info => rsx!(InfoIcon { class: "w-3 h-3" }),
     }
   }
 
@@ -144,6 +145,7 @@ pub fn StatusBadge(props: StatusBadgeProps) -> Element {
   } else {
     props.text.as_str()
   };
+  let icon = props.status.icon();
 
   rsx! {
     Badge {
@@ -152,8 +154,8 @@ pub fn StatusBadge(props: StatusBadgeProps) -> Element {
       class: "bg-opacity-90",
       if props.show_icon {
         span {
-          class: "mr-1",
-          "{props.status.icon()}"
+          class: "mr-1 flex items-center",
+          {icon}
         }
       }
       "{display_text}"

@@ -6,9 +6,10 @@ use crate::components::chat::abort_streaming;
 use crate::config::{AppConfig, QuickPrompt};
 use dioxus::prelude::*;
 
-/// Enhanced InputArea with /command support
+/// Enhanced InputArea with /command support and model selector
 /// Command is shown as a styled block: [📝 Summarize] content here
 /// Backspace deletes the entire command block
+/// 所有交互集中在底部：模型选择、MCP状态、输入、发送
 #[component]
 pub fn InputArea(
   mut input_text: Signal<String>,
@@ -17,6 +18,10 @@ pub fn InputArea(
   tx: Coroutine<String>,
   tx_with_prefix: Coroutine<(String, Option<QuickPrompt>)>,
   is_agent_running: Signal<bool>,
+  active_provider_id: String,
+  enabled_providers: Vec<crate::config::ProviderConfig>,
+  enabled_mcp_servers: Vec<crate::config::McpServerConfig>,
+  on_switch_provider: EventHandler<String>,
 ) -> Element {
   // Command palette state
   let mut show_palette = use_signal(|| false);
@@ -262,6 +267,50 @@ pub fn InputArea(
   rsx! {
     div {
       class: "px-4 py-3 border-t border-border relative z-10 shadow-custom",
+
+      // Model selector and MCP status (above input, compact row)
+      if !enabled_providers.is_empty() || !enabled_mcp_servers.is_empty() {
+        div {
+          class: "flex items-center gap-2 mb-2",
+          // Provider selector
+          if !enabled_providers.is_empty() {
+            select {
+              class: "text-xs bg-bg-surface text-text-secondary border border-border rounded px-2 py-1 focus:border-primary focus:outline-none cursor-pointer",
+              value: active_provider_id.clone(),
+              onchange: move |e| on_switch_provider(e.value()),
+
+              for provider in enabled_providers.iter() {
+                option {
+                  value: provider.id.clone(),
+                  {provider.name.clone()}
+                }
+              }
+            }
+          }
+
+          // MCP status badges (compact)
+          if !enabled_mcp_servers.is_empty() {
+            div {
+              class: "flex items-center gap-1 flex-wrap",
+              for server in enabled_mcp_servers.iter().take(3) {
+                span {
+                  class: "text-xs bg-success/10 text-success border border-success/30 rounded px-1.5 py-0.5 font-mono",
+                  title: "{server.name.clone()}",
+                  {server.name.chars().take(8).collect::<String>()}
+                }
+              }
+              if enabled_mcp_servers.len() > 3 {
+                span {
+                  class: "text-xs text-text-muted",
+                  "+{enabled_mcp_servers.len() - 3}"
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Input and send button row
       div {
         class: "flex gap-2 items-center",
 
@@ -380,6 +429,10 @@ pub fn ChatInput(
   tx: Coroutine<String>,
   tx_with_prefix: Coroutine<(String, Option<QuickPrompt>)>,
   is_agent_running: Signal<bool>,
+  active_provider_id: String,
+  enabled_providers: Vec<crate::config::ProviderConfig>,
+  enabled_mcp_servers: Vec<crate::config::McpServerConfig>,
+  on_switch_provider: EventHandler<String>,
 ) -> Element {
   rsx! {
     InputArea {
@@ -389,6 +442,10 @@ pub fn ChatInput(
       tx,
       tx_with_prefix,
       is_agent_running,
+      active_provider_id,
+      enabled_providers,
+      enabled_mcp_servers,
+      on_switch_provider,
     }
   }
 }

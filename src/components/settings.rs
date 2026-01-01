@@ -1,6 +1,7 @@
 //! Settings page component - Refactored with UI library
 //! 设置页面组件 - 使用 UI 组件库重构
 
+use crate::components::icons::*;
 use crate::components::settings_tabs::{
   AboutTab, AiProvidersTab, AppearanceTab, McpServersTab, QuickToolsTab, ShortcutsTab,
 };
@@ -93,14 +94,14 @@ pub fn Settings() -> Element {
   let server_form_args = use_signal(|| String::new());
 
   // Tab info helpers
-  let tab_info = |tab: SettingsTab| -> (&'static str, &'static str) {
+  let tab_info = |tab: SettingsTab| -> (&'static str, Element) {
     match tab {
-      SettingsTab::AI => ("AI Providers", "🤖"),
-      SettingsTab::MCP => ("MCP Servers", "⚡"),
-      SettingsTab::Appearance => ("Appearance", "🎨"),
-      SettingsTab::Shortcuts => ("Shortcuts", "⌨️"),
-      SettingsTab::QuickTools => ("Quick Tools", "🚀"),
-      SettingsTab::About => ("About", "ℹ️"),
+      SettingsTab::AI => ("AI Providers", rsx!(RobotIcon { class: "w-4 h-4" })),
+      SettingsTab::MCP => ("MCP Servers", rsx!(BoltIcon { class: "w-4 h-4" })),
+      SettingsTab::Appearance => ("Appearance", rsx!(PaletteIcon { class: "w-4 h-4" })),
+      SettingsTab::Shortcuts => ("Shortcuts", rsx!(KeyboardIcon { class: "w-4 h-4" })),
+      SettingsTab::QuickTools => ("Quick Tools", rsx!(RocketIcon { class: "w-4 h-4" })),
+      SettingsTab::About => ("About", rsx!(InfoIcon { class: "w-4 h-4" })),
     }
   };
   let (current_label, current_icon) = tab_info(active_tab());
@@ -122,42 +123,42 @@ pub fn Settings() -> Element {
               label: "AI Providers".to_string(),
               value: "ai".to_string(),
               active_value: active_tab().as_str().to_string(),
-              icon: "🤖".to_string(),
+              icon_element: rsx!(RobotIcon { class: "w-4 h-4" }),
               onclick: tab_switch(SettingsTab::AI),
             }
             NavTab {
               label: "MCP Servers".to_string(),
               value: "mcp".to_string(),
               active_value: active_tab().as_str().to_string(),
-              icon: "⚡".to_string(),
+              icon_element: rsx!(BoltIcon { class: "w-4 h-4" }),
               onclick: tab_switch(SettingsTab::MCP),
             }
             NavTab {
               label: "Appearance".to_string(),
               value: "appearance".to_string(),
               active_value: active_tab().as_str().to_string(),
-              icon: "🎨".to_string(),
+              icon_element: rsx!(PaletteIcon { class: "w-4 h-4" }),
               onclick: tab_switch(SettingsTab::Appearance),
             }
             NavTab {
               label: "Shortcuts".to_string(),
               value: "shortcuts".to_string(),
               active_value: active_tab().as_str().to_string(),
-              icon: "⌨️".to_string(),
+              icon_element: rsx!(KeyboardIcon { class: "w-4 h-4" }),
               onclick: tab_switch(SettingsTab::Shortcuts),
             }
             NavTab {
               label: "Quick Tools".to_string(),
               value: "quick_tools".to_string(),
               active_value: active_tab().as_str().to_string(),
-              icon: "🚀".to_string(),
+              icon_element: rsx!(RocketIcon { class: "w-4 h-4" }),
               onclick: tab_switch(SettingsTab::QuickTools),
             }
             NavTab {
               label: "About".to_string(),
               value: "about".to_string(),
               active_value: active_tab().as_str().to_string(),
-              icon: "ℹ️".to_string(),
+              icon_element: rsx!(InfoIcon { class: "w-4 h-4" }),
               onclick: tab_switch(SettingsTab::About),
             }
           }
@@ -176,9 +177,12 @@ pub fn Settings() -> Element {
             onclick: move |_| nav_collapsed.set(!nav_collapsed()),
             "☰"
           }
-          span {
-            class: "text-sm font-medium text-text-primary",
-            "{current_icon} {current_label}"
+          div {
+            class: "text-sm font-medium text-text-primary flex items-center gap-2",
+            {current_icon}
+            span {
+              "{current_label}"
+            }
           }
         }
 

@@ -65,6 +65,9 @@ image = "0.25"
 # Regular expressions for pattern matching
 regex = "1.12.2"
 
+# SVG icons (FontAwesome, Bootstrap, Material Design, Octicons, Feather, Ionicons, Weather)
+dioxus-free-icons = { version = "0.10", features = ["font-awesome-solid"] }
+
 # Note: Replaced once_cell with std::sync::OnceLock (Rust 1.70+)
 # We've implemented our own theme system with pure Dioxus instead
 # For a real component library, consider using:

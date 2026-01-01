@@ -16,7 +16,7 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
   },
   // ========== Typography ==========
-  "editor.fontFamily": "JetBrains Mono, LXGW WenKai Mono GB",
+  "editor.fontFamily": "JetBrains Mono, Sarasa Gothic SC",
   "editor.fontLigatures": true,
   // ========== Rust ==========
   "rust-analyzer.checkOnSave": false,

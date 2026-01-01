@@ -1,6 +1,7 @@
 //! Custom window title bar with drag region and window controls
 //! 自定义窗口标题栏，支持拖拽区域和窗口控制按钮
 
+use crate::components::icons::{CloseIcon, MaximizeIcon, MinimizeIcon};
 use crate::routes::Route;
 use dioxus::prelude::*;
 use dioxus_router::hooks::use_navigator;
@@ -52,22 +53,22 @@ pub fn TitleBar() -> Element {
         style: "app-region: no-drag;",
 
         WindowButton {
-          icon: "−",
           tooltip: "Minimize",
           close: false,
           onclick: move |_| { window_min.set_minimized(true); },
+          MinimizeIcon {},
         }
         WindowButton {
-          icon: "□",
           tooltip: "Maximize",
           close: false,
           onclick: move |_| { window_max_btn.toggle_maximized(); },
+          MaximizeIcon {},
         }
         WindowButton {
-          icon: r"×",
           tooltip: "Close",
           close: true,
           onclick: move |_| { window_close.close(); },
+          CloseIcon {},
         }
       }
     }
@@ -107,10 +108,10 @@ fn NavLink(
 /// Window control button
 #[component]
 fn WindowButton(
-  icon: &'static str,
   tooltip: String,
   #[props(default = false)] close: bool,
   onclick: EventHandler<MouseEvent>,
+  children: Element,
 ) -> Element {
   // NOTE: Compute class outside rsx! to avoid Dioxus hot reload bugs
   let hover_class = if close {
@@ -126,8 +127,7 @@ fn WindowButton(
       class: "{full_class}",
       title: "{tooltip}",
       onclick: move |e| { onclick.call(e); },
-      // Use flex centering instead of transform for better cross-font rendering
-      span { class: "text-xl leading-none", "{icon}" }
+      {children}
     }
   }
 }

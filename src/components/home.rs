@@ -250,13 +250,9 @@ pub fn Home() -> Element {
         // Header
         ChatHeader {
           current_session_title: current_session_title(),
-          active_provider_id: active_provider_id(),
-          enabled_providers: enabled_providers(),
-          enabled_mcp_servers: enabled_mcp_servers(),
           sidebar_collapsed: sidebar_collapsed(),
           on_toggle_sidebar: move |_| sidebar_collapsed.set(!sidebar_collapsed()),
           on_new_chat: new_chat_for_header,
-          on_switch_provider: switch_provider,
         }
 
         // Messages area (scrollable)
@@ -312,6 +308,10 @@ pub fn Home() -> Element {
           tx: tx.clone(),
           tx_with_prefix: tx_with_prefix.clone(),
           is_agent_running: is_agent_running.clone(),
+          active_provider_id: active_provider_id(),
+          enabled_providers: enabled_providers(),
+          enabled_mcp_servers: enabled_mcp_servers(),
+          on_switch_provider: switch_provider,
         }
       }
     }

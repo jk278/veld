@@ -336,3 +336,73 @@ pub fn CloseIcon() -> Element {
         }
     }
 }
+
+/// Sun icon (for light theme)
+#[component]
+pub fn SunIcon(class: Option<&'static str>) -> Element {
+    rsx! {
+        Icon {
+            class: class.unwrap_or("w-5 h-5"),
+            width: 20,
+            height: 20,
+            fill: "currentColor",
+            icon: fa_solid_icons::FaSun,
+        }
+    }
+}
+
+/// Moon icon (for dark theme)
+#[component]
+pub fn MoonIcon(class: Option<&'static str>) -> Element {
+    rsx! {
+        Icon {
+            class: class.unwrap_or("w-5 h-5"),
+            width: 20,
+            height: 20,
+            fill: "currentColor",
+            icon: fa_solid_icons::FaMoon,
+        }
+    }
+}
+
+/// Display/Monitor icon (for system theme)
+#[component]
+pub fn DisplayIcon(class: Option<&'static str>) -> Element {
+    rsx! {
+        Icon {
+            class: class.unwrap_or("w-5 h-5"),
+            width: 20,
+            height: 20,
+            fill: "currentColor",
+            icon: fa_solid_icons::FaDisplay,
+        }
+    }
+}
+
+/// Send/Paper plane icon
+#[component]
+pub fn SendIcon(class: Option<&'static str>) -> Element {
+    rsx! {
+        Icon {
+            class: class.unwrap_or("w-5 h-5"),
+            width: 20,
+            height: 20,
+            fill: "currentColor",
+            icon: fa_solid_icons::FaPaperPlane,
+        }
+    }
+}
+
+/// Stop icon
+#[component]
+pub fn StopIcon(class: Option<&'static str>) -> Element {
+    rsx! {
+        Icon {
+            class: class.unwrap_or("w-5 h-5"),
+            width: 20,
+            height: 20,
+            fill: "currentColor",
+            icon: fa_solid_icons::FaStop,
+        }
+    }
+}

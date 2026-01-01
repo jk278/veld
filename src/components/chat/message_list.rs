@@ -1,6 +1,7 @@
 //! Message list component
 //! 消息列表组件 - 显示聊天消息
 
+use crate::components::icons::ChatIcon;
 use crate::components::markdown::{MarkdownContent, PlainTextContent};
 use crate::theme::use_is_dark;
 use dioxus::prelude::*;
@@ -61,9 +62,9 @@ pub fn EmptyState(has_api_key: bool) -> Element {
   rsx! {
     div {
       class: "flex flex-col items-center justify-center h-full text-center gap-4 opacity-50",
-      span {
-        class: "text-5xl",
-        "💬"
+      div {
+        class: "text-6xl text-text-secondary",
+        ChatIcon { class: "w-16 h-16" }
       }
       p {
         class: "text-lg text-text-secondary",

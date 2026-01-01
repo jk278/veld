@@ -130,22 +130,22 @@ pub fn ShortcutsTab() -> Element {
 fn ShortcutDisplayItem(shortcut: ShortcutItem, on_edit: Callback<()>) -> Element {
   rsx! {
     div {
-      class: "flex justify-between items-center py-3 px-4 bg-bg-primary border border-border rounded-lg hover:border-primary/30 transition-all",
+      class: "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-bg-surface border border-border rounded-md hover:border-primary transition-colors",
       div {
-        class: "flex flex-col",
+        class: "flex-1 min-w-0",
         span {
           class: "text-text-primary font-medium",
           "{shortcut.description}"
         }
       }
       div {
-        class: "flex items-center gap-3",
+        class: "flex flex-wrap items-center gap-2 sm:flex-nowrap",
         code {
           class: "px-3 py-1.5 bg-bg-surface text-primary rounded font-mono text-sm border border-border",
           "{shortcut.action}"
         }
         button {
-          class: "px-3 py-1 text-sm text-text-secondary hover:text-primary transition-all",
+          class: "px-3 py-1.5 text-sm text-text-secondary hover:text-primary transition-colors",
           onclick: move |_| on_edit.call(()),
           "Edit"
         }

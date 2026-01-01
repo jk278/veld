@@ -24,14 +24,13 @@ pub fn McpServersTab(
   rsx! {
     div {
       class: "space-y-6",
-      h1 {
-        class: "text-2xl font-semibold text-text-primary",
-        "MCP Servers"
-      }
-
-      // Add new server button
+      // Header with title and add button
       div {
-        class: "flex justify-end mb-4",
+        class: "flex items-center justify-between",
+        h1 {
+          class: "text-2xl font-semibold text-text-primary",
+          "MCP Servers"
+        }
         PrimaryButton {
           onclick: move |_| {
               editing_server.set(Some(String::new()));
@@ -39,7 +38,7 @@ pub fn McpServersTab(
               server_form_command.set(String::new());
               server_form_args.set(String::new());
           },
-          "＋ Add Server"
+          "＋ Add"
         }
       }
 

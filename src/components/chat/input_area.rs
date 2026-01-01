@@ -2,6 +2,7 @@
 //! 聊天输入区域组件 - 支持 /命令快速工具
 
 use crate::components::command_palette::CommandPalette;
+use crate::components::icons::{SendIcon, StopIcon};
 use crate::components::chat::abort_streaming;
 use crate::config::{AppConfig, QuickPrompt};
 use dioxus::prelude::*;
@@ -349,16 +350,16 @@ pub fn InputArea(
         // Show Stop button when agent running, Send button otherwise
         if is_agent_running() {
           button {
-            class: "px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-all text-sm font-medium whitespace-nowrap",
+            class: "px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-all whitespace-nowrap",
             onclick: stop_click,
-            "Stop"
+            StopIcon { class: "w-5 h-5" }
           }
         } else {
           button {
-            class: "px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap",
+            class: "px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
             disabled: !has_api_key || user_content().trim().is_empty(),
             onclick: send_click,
-            "Send"
+            SendIcon { class: "w-5 h-5" }
           }
         }
       }

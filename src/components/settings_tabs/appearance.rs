@@ -1,6 +1,7 @@
 //! Appearance tab component
 //! 外观设置标签页
 
+use crate::components::icons::*;
 use crate::config::{AppConfig, ThemeMode};
 use crate::theme::{use_theme, use_zoom_level};
 use dioxus::prelude::*;
@@ -29,19 +30,16 @@ pub fn AppearanceTab() -> Element {
         }
         div {
           class: "flex flex-wrap gap-2 items-center",
-          for (mode , label , icon) in [
-              (ThemeMode::Light, "Light", "☀️"),
-              (ThemeMode::Dark, "Dark", "🌙"),
-              (ThemeMode::System, "System", "🖥️"),
+          for (mode, label, icon) in [
+              (ThemeMode::Light, "Light", rsx!(SunIcon { class: "w-4 h-4 mr-2" })),
+              (ThemeMode::Dark, "Dark", rsx!(MoonIcon { class: "w-4 h-4 mr-2" })),
+              (ThemeMode::System, "System", rsx!(DisplayIcon { class: "w-4 h-4 mr-2" })),
           ]
           {
             button {
-              class: if theme_mode() == mode { "px-4 py-2 rounded font-mono text-sm transition-all bg-primary text-white border border-border" } else { "px-4 py-2 rounded font-mono text-sm transition-all bg-bg-surface text-text-primary border border-border hover:bg-bg-secondary" },
+              class: if theme_mode() == mode { "px-4 py-2 rounded font-mono text-sm transition-all bg-primary text-white border border-border flex items-center" } else { "px-4 py-2 rounded font-mono text-sm transition-all bg-bg-surface text-text-primary border border-border hover:bg-bg-secondary flex items-center" },
               onclick: move |_| theme_mode.set(mode),
-              span {
-                class: "mr-2",
-                "{icon}"
-              }
+              {icon}
               "{label}"
             }
           }

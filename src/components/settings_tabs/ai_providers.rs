@@ -23,14 +23,13 @@ pub fn AiProvidersTab(
   rsx! {
     div {
       class: "space-y-6",
-      h1 {
-        class: "text-2xl font-semibold text-text-primary",
-        "AI Providers"
-      }
-
-      // Add new provider button
+      // Header with title and add button
       div {
-        class: "flex justify-end mb-4",
+        class: "flex items-center justify-between",
+        h1 {
+          class: "text-2xl font-semibold text-text-primary",
+          "AI Providers"
+        }
         PrimaryButton {
           onclick: move |_| {
               editing_provider.set(Some(String::new()));
@@ -41,7 +40,7 @@ pub fn AiProvidersTab(
               form_adapter_type.set(Some("openai".to_string()));
               form_base_url.set(String::new());
           },
-          "＋ Add Provider"
+          "＋ Add"
         }
       }
 

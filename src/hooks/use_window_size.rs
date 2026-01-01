@@ -51,7 +51,11 @@ pub fn use_window_size() -> Signal<f64> {
 pub fn use_window_save() {
   use_resource(move || {
     async move {
-      let mut last_size = None;
+      // Initialize last_size from config to avoid overwriting on startup
+      let mut last_size = AppConfig::load()
+        .ok()
+        .and_then(|c| Some((c.ui.window_width?, c.ui.window_height?)));
+
       loop {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         let size = dioxus_desktop::window().inner_size();
@@ -72,7 +76,8 @@ pub fn use_window_save() {
 /// Returns (is_resizing, start_resize_callback)
 ///
 /// NOTE: CSS variable (--sidebar-width) is the single source of truth for width
-/// - Config file only used for initial value and persistence
+/// - Initialized once in AppLayout to prevent race conditions
+/// - Config file only used for persistence (not initial read here)
 /// - No signal synchronization needed between Rust and CSS
 ///
 /// CRITICAL: Event-driven architecture required (polling has race conditions)
@@ -81,17 +86,6 @@ pub fn use_window_save() {
 /// - CustomEvent + recv() ensures accurate final width delivery
 pub fn use_sidebar_resize() -> (Signal<bool>, Callback<()>) {
   let is_resizing = use_signal(|| false);
-
-  // Initialize CSS variable from config
-  use_effect(move || {
-    let width = AppConfig::load()
-      .map(|c| c.ui.sidebar_width)
-      .unwrap_or(DEFAULT_SIDEBAR_WIDTH);
-    let _ = dioxus::document::eval(&format!(
-      "document.documentElement.style.setProperty('--sidebar-width', '{}px');",
-      width
-    ));
-  });
 
   // Listen for drag end events from JavaScript
   let mut rx = dioxus::document::eval(

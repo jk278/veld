@@ -5,9 +5,18 @@ use dirs;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 
 // Re-export from hooks for default sidebar width
 pub use crate::hooks::DEFAULT_SIDEBAR_WIDTH;
+
+/// Global save lock to prevent concurrent writes to config file
+/// Ensures all save operations are serialized
+static SAVE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn get_save_lock() -> &'static Mutex<()> {
+  SAVE_LOCK.get_or_init(|| Mutex::new(()))
+}
 
 /// Application configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,8 +101,8 @@ pub struct UiConfig {
   pub sidebar_collapsed: bool,
   pub zoom_level: f64,  // 0.5 ~ 2.0, default 1.0
   pub sidebar_width: u32,  // Sidebar width in pixels (200-600)
-  pub window_width: Option<u32>,  // Persisted window width
-  pub window_height: Option<u32>, // Persisted window height
+  pub window_width: Option<u32>,  // Persisted window width (physical pixels)
+  pub window_height: Option<u32>, // Persisted window height (physical pixels)
 }
 
 /// Quick Tools (presets) configuration
@@ -312,6 +321,14 @@ impl AppConfig {
 
   /// Save configuration to file
   pub fn save(&self) -> Result<()> {
+    // Acquire global lock to prevent concurrent writes
+    let _lock = get_save_lock()
+      .lock()
+      .map_err(|_| ConfigError::Io(std::io::Error::new(
+        std::io::ErrorKind::Other,
+        "Failed to acquire save lock",
+      )))?;
+
     let config_dir = Self::get_config_dir();
     fs::create_dir_all(&config_dir).map_err(ConfigError::Io)?;
 
@@ -444,7 +461,7 @@ impl AppConfig {
     });
   }
 
-  /// Update window size (width x height in pixels)
+  /// Update window size (width x height in physical pixels)
   pub fn update_window_size(&mut self, width: u32, height: u32) {
     self.ui.window_width = Some(width);
     self.ui.window_height = Some(height);

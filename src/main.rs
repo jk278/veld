@@ -43,31 +43,31 @@ fn main() {
   }
 
   // Load persisted window size from config
-  let (window_width, window_height) = AppConfig::load()
-    .ok()
-    .and_then(|c| Some((c.ui.window_width?, c.ui.window_height?)))
-    .unwrap_or(crate::hooks::DEFAULT_WINDOW_SIZE);
+  let (window_width, window_height) = match AppConfig::load() {
+    Ok(config) => {
+      match (config.ui.window_width, config.ui.window_height) {
+        (Some(w), Some(h)) => (w, h),
+        _ => crate::hooks::DEFAULT_WINDOW_SIZE,
+      }
+    }
+    Err(_) => crate::hooks::DEFAULT_WINDOW_SIZE,
+  };
 
   // 配置窗口：隐藏原生标题栏，使用自定义标题栏
   // NOTE: decorations(false) 导致 resize 区域仅 1-2px (tao 限制，Electron 有 titleBarStyle: "custom")
-  let mut window = WindowBuilder::new()
+  let window = WindowBuilder::new()
     .with_title("Veld - AI Toolkit")
     .with_decorations(false)  // Hide native titlebar for custom title bar
     .with_resizable(true)
+    .with_inner_size(dioxus_desktop::tao::dpi::PhysicalSize::new(
+      window_width,
+      window_height,
+    ))
     .with_min_inner_size(dioxus_desktop::tao::dpi::LogicalSize::new(
       crate::hooks::MIN_WINDOW_SIZE.0 as f64,
       crate::hooks::MIN_WINDOW_SIZE.1 as f64,
     ))
     .with_window_icon(load_window_icon());
-
-  // Restore window size if available
-  if let Some(inner_size) = dioxus_desktop::tao::dpi::LogicalSize::new(
-    window_width as f64,
-    window_height as f64,
-  ).into()
-  {
-    window = window.with_inner_size(inner_size);
-  }
 
   dioxus::LaunchBuilder::new()
     .with_cfg(

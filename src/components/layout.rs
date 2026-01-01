@@ -3,6 +3,8 @@
 
 use crate::components::home::ACTIVATE_INPUT_TRIGGER;
 use crate::components::title_bar::TitleBar;
+use crate::config::AppConfig;
+use crate::hooks::DEFAULT_SIDEBAR_WIDTH;
 use crate::routes::Route;
 use crate::theme::{use_theme, use_zoom_level};
 use dioxus::prelude::*;
@@ -19,6 +21,18 @@ pub fn AppLayout() -> Element {
   let _theme_mode = use_theme();
   let zoom_level = use_zoom_level();
   let navigator = use_navigator();
+
+  // Initialize CSS variable once (before any page loads)
+  // This prevents race conditions when multiple pages call use_sidebar_resize()
+  use_effect(move || {
+    let width = AppConfig::load()
+      .map(|c| c.ui.sidebar_width)
+      .unwrap_or(DEFAULT_SIDEBAR_WIDTH);
+    let _ = dioxus::document::eval(&format!(
+      "document.documentElement.style.setProperty('--sidebar-width', '{}px');",
+      width
+    ));
+  });
 
   // Track if we need to activate input after navigation
   let mut pending_activation = use_signal(|| false);

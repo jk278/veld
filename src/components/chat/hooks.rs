@@ -7,32 +7,11 @@ use crate::config::QuickPrompt;
 use crate::services::{chat_with_tools, AgentStep};
 use dioxus::document;
 use dioxus::prelude::*;
-use futures_util::stream::StreamExt;
 use std::time::SystemTime;
-use tokio::sync::{mpsc, Mutex, broadcast};
 
-/// Global abort sender for interrupting streaming responses
-/// Use get_abort_sender() to get the current sender, and set_abort_sender() to update it
-static CURRENT_ABORT_SENDER: Mutex<Option<broadcast::Sender<()>>> = Mutex::const_new(None);
-
-/// Set the current abort sender (called internally by hooks)
-async fn set_abort_sender(sender: broadcast::Sender<()>) {
-  let mut current = CURRENT_ABORT_SENDER.lock().await;
-  *current = Some(sender);
-}
-
-/// Get the current abort sender (call this to abort streaming)
-pub async fn get_abort_sender() -> Option<broadcast::Sender<()>> {
-  let current = CURRENT_ABORT_SENDER.lock().await;
-  current.clone()
-}
-
-/// Abort the current streaming response
-pub async fn abort_streaming() {
-  if let Some(sender) = get_abort_sender().await {
-    let _ = sender.send(());
-  }
-}
+// ============================================================================
+// PART 1: Type Conversions & ID Generation
+// ============================================================================
 
 impl From<HistoryMessage> for ChatMessage {
   fn from(msg: HistoryMessage) -> Self {
@@ -56,273 +35,480 @@ impl From<ChatMessage> for HistoryMessage {
   }
 }
 
-/// Internal agent execution logic - shared by both new chat and regeneration
-async fn run_agent(
+/// Message ID generator - centralizes ID generation logic
+struct MessageIdGenerator {
+  counter: u64,
+}
+
+impl MessageIdGenerator {
+  fn new() -> Self {
+    Self { counter: 0 }
+  }
+
+  fn generate_user(&mut self) -> String {
+    let now = SystemTime::now()
+      .duration_since(SystemTime::UNIX_EPOCH)
+      .unwrap()
+      .as_millis();
+    self.counter += 1;
+    format!("msg-{}-{}", now, self.counter)
+  }
+
+  fn generate_thinking(&mut self) -> String {
+    let now = SystemTime::now()
+      .duration_since(SystemTime::UNIX_EPOCH)
+      .unwrap()
+      .as_millis();
+    self.counter += 1;
+    format!("thinking-{}-{}", now, self.counter)
+  }
+
+  fn generate_response(&mut self) -> String {
+    let now = SystemTime::now()
+      .duration_since(SystemTime::UNIX_EPOCH)
+      .unwrap()
+      .as_millis();
+    self.counter += 1;
+    format!("msg-{}-{}", now, self.counter)
+  }
+}
+
+// ============================================================================
+// PART 2: Global Abort State (TODO: Replace with Dioxus context)
+// ============================================================================
+
+/// Global abort sender for interrupting streaming responses
+/// TODO: Replace with Dioxus context to avoid global mutable state
+use tokio::sync::{broadcast, Mutex};
+
+static CURRENT_ABORT_SENDER: Mutex<Option<broadcast::Sender<()>>> = Mutex::const_new(None);
+
+async fn set_abort_sender(sender: broadcast::Sender<()>) {
+  let mut current = CURRENT_ABORT_SENDER.lock().await;
+  *current = Some(sender);
+}
+
+pub async fn get_abort_sender() -> Option<broadcast::Sender<()>> {
+  let current = CURRENT_ABORT_SENDER.lock().await;
+  current.clone()
+}
+
+pub async fn abort_streaming() {
+  if let Some(sender) = get_abort_sender().await {
+    let _ = sender.send(());
+  }
+}
+
+// ============================================================================
+// PART 3: Agent Execution State Machine
+// ============================================================================
+
+/// Agent execution state
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum AgentState {
+  Thinking,
+  Streaming,
+  Complete,
+}
+
+/// Agent executor - manages the streaming response lifecycle
+struct AgentExecutor {
+  id_gen: MessageIdGenerator,
+  thinking_id: Option<String>,
+  response_id: Option<String>,
+  intermediate_steps: Vec<String>,
+  final_response: String,
+  state: AgentState,
+  update_counter: usize,
+  thinking_saved: bool,
+}
+
+impl AgentExecutor {
+  fn new() -> Self {
+    Self {
+      id_gen: MessageIdGenerator::new(),
+      thinking_id: None,
+      response_id: None,
+      intermediate_steps: Vec::new(),
+      final_response: String::new(),
+      state: AgentState::Thinking,
+      update_counter: 0,
+      thinking_saved: false,
+    }
+  }
+
+  fn initialize(&mut self) {
+    self.thinking_id = Some(self.id_gen.generate_thinking());
+    self.response_id = Some(self.id_gen.generate_response());
+  }
+
+  /// Process an agent step and return the action to take
+  fn process_step(&mut self, step: AgentStep) -> ExecutionAction {
+    match step {
+      AgentStep::Connecting(msg) => {
+        self.intermediate_steps.push(format!("• {}", msg));
+        ExecutionAction::UpdateUI
+      }
+      AgentStep::Thinking { short, content } => {
+        self.process_thinking(short, content)
+      }
+      AgentStep::ToolCall { name, .. } => {
+        self.intermediate_steps.push(format!("• ⏳ 调用 {}", name));
+        ExecutionAction::UpdateUI
+      }
+      AgentStep::ToolResult { name, .. } => {
+        self.update_tool_result(name);
+        ExecutionAction::UpdateUI
+      }
+      AgentStep::Chunk(chunk) => {
+        self.process_chunk(chunk)
+      }
+      AgentStep::Final => {
+        self.state = AgentState::Complete;
+        ExecutionAction::Complete
+      }
+    }
+  }
+
+  fn process_thinking(&mut self, short: String, content: Option<String>) -> ExecutionAction {
+    if let Some(thought_content) = content {
+      let formatted = Self::format_thinking_content(&thought_content);
+      if !formatted.trim().is_empty() {
+        self.intermediate_steps.push(formatted);
+      }
+    } else if !short.is_empty() {
+      self.intermediate_steps.push(format!("• {}", short));
+    }
+    ExecutionAction::UpdateUI
+  }
+
+  fn update_tool_result(&mut self, name: String) {
+    if let Some(pos) = self.intermediate_steps.iter().rposition(|s| s.contains("⏳")) {
+      self.intermediate_steps[pos] = format!("• ✓ 调用 {}", name);
+    } else {
+      self.intermediate_steps.push(format!("• ✓ 调用 {}", name));
+    }
+  }
+
+  fn process_chunk(&mut self, chunk: String) -> ExecutionAction {
+    if self.state != AgentState::Streaming && !chunk.trim().is_empty() {
+      self.state = AgentState::Streaming;
+    }
+    self.final_response.push_str(&chunk);
+    ExecutionAction::StreamChunk
+  }
+
+  /// Check if UI should update based on current state
+  fn should_update_ui(&mut self) -> bool {
+    self.update_counter += 1;
+    match self.state {
+      AgentState::Streaming => self.update_counter % 5 == 0,
+      _ => true,
+    }
+  }
+
+  /// Get the display content for current state
+  fn display_content(&self) -> String {
+    match self.state {
+      AgentState::Streaming => self.final_response.clone(),
+      _ => self.intermediate_steps.join("\n"),
+    }
+  }
+
+  /// Get the target message ID for current state
+  fn target_id(&self) -> &str {
+    match self.state {
+      AgentState::Streaming => self.response_id.as_ref().unwrap(),
+      _ => self.thinking_id.as_ref().unwrap(),
+    }
+  }
+
+  /// Check if thinking message should be saved
+  fn should_save_thinking(&self) -> bool {
+    self.state == AgentState::Streaming
+      && !self.intermediate_steps.is_empty()
+      && !self.thinking_saved
+  }
+
+  fn mark_thinking_saved(&mut self) {
+    self.thinking_saved = true;
+  }
+
+  fn thinking_content(&self) -> String {
+    self.intermediate_steps.join("\n")
+  }
+
+  fn is_complete(&self) -> bool {
+    self.state == AgentState::Complete
+  }
+
+  fn has_response(&self) -> bool {
+    !self.final_response.is_empty()
+  }
+
+  fn response_id(&self) -> &str {
+    self.response_id.as_ref().unwrap()
+  }
+
+  fn thinking_id(&self) -> &str {
+    self.thinking_id.as_ref().unwrap()
+  }
+
+  /// Format thinking content: show text directly, filter out JSON tool calls
+  fn format_thinking_content(content: &str) -> String {
+    let normalized = content.replace(char::is_whitespace, "");
+
+    if normalized.contains("\"tool_call\"")
+      || normalized.contains("\"Tool_call\"")
+      || normalized.contains("\"TOOL_CALL\"")
+    {
+      eprintln!("[FILTERED TOOL CALL JSON]");
+      return String::from("• ");
+    }
+
+    let result: Vec<String> = content
+      .lines()
+      .map(|l| l.trim().to_string())
+      .filter(|l| !l.is_empty())
+      .collect();
+
+    if result.is_empty() {
+      format!("• ")
+    } else {
+      format!("• {}", result.join(" "))
+    }
+  }
+}
+
+/// Actions returned by the executor
+enum ExecutionAction {
+  UpdateUI,
+  StreamChunk,
+  Complete,
+}
+
+// ============================================================================
+// PART 4: Coroutine Shared Logic
+// ============================================================================
+
+/// Shared context for chat coroutines
+struct ChatContext {
+  messages: Signal<Vec<ChatMessage>>,
+  chat_history: Signal<ChatHistoryData>,
+  is_running: Signal<bool>,
+  id_gen: MessageIdGenerator,
+}
+
+impl ChatContext {
+  fn new(
+    messages: Signal<Vec<ChatMessage>>,
+    chat_history: Signal<ChatHistoryData>,
+    is_running: Signal<bool>,
+  ) -> Self {
+    Self {
+      messages,
+      chat_history,
+      is_running,
+      id_gen: MessageIdGenerator::new(),
+    }
+  }
+
+  /// Add user message to both UI and history
+  fn add_user_message(&mut self, content: String) -> String {
+    let now = Self::now_secs();
+    let msg_id = self.id_gen.generate_user();
+    let user_msg = ChatMessage {
+      id: msg_id.clone(),
+      role: "user".to_string(),
+      content: content.clone(),
+      timestamp: now,
+    };
+
+    self.messages.push(user_msg.clone());
+    self.chat_history.write().add_message(HistoryMessage::from(user_msg));
+    Self::sync_history_signals(&self.chat_history);
+
+    msg_id
+  }
+
+  /// Build API messages from current session (excluding system messages)
+  fn build_api_messages(&self) -> Vec<crate::services::ChatMessage> {
+    self
+      .messages
+      .read()
+      .iter()
+      .filter(|m| m.role != "system")
+      .map(|m| crate::services::ChatMessage {
+        role: m.role.clone(),
+        content: m.content.clone(),
+      })
+      .collect()
+  }
+
+  /// Sync history to disk and trigger reactivity
+  fn sync_history_signals(chat_history: &Signal<ChatHistoryData>) {
+    let history_clone = (*chat_history.read()).clone();
+    let _ = chat_history.read().save();
+    // Clone the signal and set to trigger reactivity
+    let mut chat = chat_history.clone();
+    chat.set(history_clone);
+  }
+
+  fn now_secs() -> u64 {
+    SystemTime::now()
+      .duration_since(SystemTime::UNIX_EPOCH)
+      .unwrap()
+      .as_secs()
+  }
+}
+
+/// Execute the agent with proper UI updates
+async fn execute_agent(
   api_messages: Vec<crate::services::ChatMessage>,
-  mut messages: Signal<Vec<ChatMessage>>,
-  mut chat_history: Signal<ChatHistoryData>,
-  mut is_running: Signal<bool>,
-  msg_counter: &mut u64,
-) {
-  // Mark agent as running
-  is_running.set(true);
+) -> tokio::sync::mpsc::UnboundedReceiver<AgentStep> {
+  use tokio::sync::mpsc;
 
-  // Create channel for streaming AgentStep updates
-  let (step_tx, mut step_rx) = mpsc::unbounded_channel::<AgentStep>();
-
-  // Create abort channel for interrupting streaming
+  let (step_tx, step_rx) = mpsc::unbounded_channel();
   let (abort_tx, abort_rx) = tokio::sync::broadcast::channel::<()>(1);
-  // Store globally for UI access
+  tokio::spawn(async move { set_abort_sender(abort_tx).await });
+
+  // Spawn the agent service
   tokio::spawn(async move {
-    set_abort_sender(abort_tx).await;
-  });
-
-  // Create temporary assistant message ID for streaming updates
-  let now_millis = SystemTime::now()
-    .duration_since(SystemTime::UNIX_EPOCH)
-    .unwrap()
-    .as_millis();
-  let now_secs = SystemTime::now()
-    .duration_since(SystemTime::UNIX_EPOCH)
-    .unwrap()
-    .as_secs();
-  *msg_counter += 1;
-  let assistant_msg_id = format!("msg-{}-{}", now_millis, msg_counter);
-
-  // Add initial placeholder message
-  messages.push(ChatMessage {
-    id: assistant_msg_id.clone(),
-    role: "assistant".to_string(),
-    content: "思考中...".to_string(),
-    timestamp: now_secs,
-  });
-
-  // Track intermediate steps and final answer
-  let mut intermediate_steps = Vec::new();
-  let mut final_response = String::new();
-  let mut stream_complete = false;
-  let mut is_streaming = false;
-  let mut update_counter = 0usize;
-
-  eprintln!("=== STARTING AGENT TASK ===");
-
-  // Spawn agent in background
-  let api_messages_clone = api_messages.clone();
-  let step_tx_clone = step_tx.clone();
-  tokio::spawn(async move {
-    if let Err(e) = chat_with_tools(api_messages_clone, step_tx_clone, abort_rx).await {
+    if let Err(e) = chat_with_tools(api_messages, step_tx, abort_rx).await {
       eprintln!("[HOOKS] Agent error: {:?}", e);
     }
   });
 
-  // Process steps as they arrive
-  eprintln!("=== ENTERING STEP LOOP ===");
-  let mut step_count = 0;
-
-  while let Some(step) = step_rx.recv().await {
-    step_count += 1;
-    eprintln!("=== PROCESSING STEP {} ===", step_count);
-
-    match step {
-      AgentStep::Connecting(msg) => {
-        intermediate_steps.push(format!("• {}", msg));
-      }
-      AgentStep::Thinking { short, content } => {
-        if let Some(thought_content) = content {
-          let formatted = format_thinking_content(&thought_content);
-          if !formatted.trim().is_empty() {
-            intermediate_steps.push(formatted);
-          }
-        } else if !short.is_empty() {
-          intermediate_steps.push(format!("• {}", short));
-        }
-      }
-      AgentStep::ToolCall { name, .. } => {
-        intermediate_steps.push(format!("• ⏳ 调用 {}", name));
-      }
-      AgentStep::ToolResult { name, .. } => {
-        if let Some(pos) = intermediate_steps.iter().rposition(|s| s.contains("⏳")) {
-          intermediate_steps[pos] = format!("• ✓ 调用 {}", name);
-        } else {
-          intermediate_steps.push(format!("• ✓ 调用 {}", name));
-        }
-      }
-      AgentStep::Chunk(chunk) => {
-        if !is_streaming {
-          is_streaming = true;
-          // Don't clear intermediate_steps - preserve them for the final answer
-        }
-        final_response.push_str(&chunk);
-      }
-      AgentStep::Final => {
-        stream_complete = true;
-      }
-    }
-
-    // When stream completes, save final message
-    if stream_complete {
-      if !final_response.is_empty() {
-        eprintln!("=== STREAM COMPLETE, SAVING MESSAGES ===");
-
-        let current_msgs = messages.read().clone();
-        if let Some(pos) = current_msgs.iter().position(|m| m.id == assistant_msg_id) {
-          // First, update the intermediate steps message
-          let mut updated = current_msgs;
-          updated[pos].content = intermediate_steps.join("\n");
-          messages.set(updated);
-
-          // Then, create a new message for the final response
-          let now_millis_final = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-          let now_secs_final = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-          *msg_counter += 1;
-          let final_msg_id = format!("msg-{}-{}", now_millis_final, msg_counter);
-
-          messages.push(ChatMessage {
-            id: final_msg_id.clone(),
-            role: "assistant".to_string(),
-            content: final_response.clone(),
-            timestamp: now_secs_final,
-          });
-
-          // Save both messages to history
-          chat_history.write().add_message(HistoryMessage {
-            id: assistant_msg_id.clone(),
-            role: "assistant".to_string(),
-            content: intermediate_steps.join("\n"),
-            timestamp: now_secs,
-          });
-          chat_history.write().add_message(HistoryMessage {
-            id: final_msg_id.clone(),
-            role: "assistant".to_string(),
-            content: final_response.clone(),
-            timestamp: now_secs_final,
-          });
-          let history_clone = (*chat_history.read()).clone();
-          let _ = chat_history.read().save();
-          chat_history.set(history_clone);
-
-          is_running.set(false);
-          break;
-        }
-      } else {
-        // Aborted: remove the placeholder "思考中..." message
-        eprintln!("=== STREAM ABORTED, REMOVING PLACEHOLDER ===");
-        let current_msgs = messages.read().clone();
-        if let Some(pos) = current_msgs.iter().position(|m| m.id == assistant_msg_id) {
-          let mut updated = current_msgs;
-          updated.remove(pos);
-          messages.set(updated);
-        }
-        is_running.set(false);
-        break;
-      }
-    }
-
-    // Update UI in real-time (throttled)
-    if !stream_complete {
-      update_counter += 1;
-      let should_update = if is_streaming {
-        update_counter % 5 == 0
-      } else {
-        true
-      };
-
-      if should_update {
-        let display_content = if is_streaming {
-          final_response.clone()
-        } else {
-          intermediate_steps.join("\n")
-        };
-
-        eprintln!(
-          "=== UPDATING SIGNAL (step {}, content length: {}) ===",
-          step_count,
-          display_content.len()
-        );
-
-        let current_msgs = messages.read().clone();
-        if let Some(pos) = current_msgs.iter().position(|m| m.id == assistant_msg_id) {
-          let mut updated = current_msgs;
-          updated[pos].content = display_content;
-          updated[pos].timestamp = now_secs;
-          messages.set(updated);
-        } else {
-          drop(current_msgs);
-          messages.push(ChatMessage {
-            id: assistant_msg_id.clone(),
-            role: "assistant".to_string(),
-            content: display_content,
-            timestamp: now_secs,
-          });
-        }
-      }
-    }
-  }
-  eprintln!("=== STEP LOOP DONE ===");
-  is_running.set(false);
+  step_rx
 }
 
+/// Process the agent stream with UI updates
+async fn process_agent_stream(
+  mut step_rx: tokio::sync::mpsc::UnboundedReceiver<AgentStep>,
+  ctx: &mut ChatContext,
+) {
+  let mut executor = AgentExecutor::new();
+  executor.initialize();
+
+  ctx.is_running.set(true);
+
+  eprintln!(
+    "=== STARTING AGENT: thinking={}, response={} ===",
+    executor.thinking_id(),
+    executor.response_id()
+  );
+
+  while let Some(step) = step_rx.recv().await {
+    let _action = executor.process_step(step);
+
+    // Save thinking message on first stream chunk
+    if executor.should_save_thinking() {
+      let current_msgs = ctx.messages.read();
+      let thinking_exists = current_msgs.iter().any(|m| m.id == executor.thinking_id());
+      drop(current_msgs);
+
+      if !thinking_exists {
+        ctx.chat_history.write().add_message(HistoryMessage {
+          id: executor.thinking_id().to_string(),
+          role: "assistant".to_string(),
+          content: executor.thinking_content(),
+          timestamp: ChatContext::now_secs(),
+        });
+        executor.mark_thinking_saved();
+      }
+    }
+
+    // Handle completion
+    if executor.is_complete() {
+      if executor.has_response() {
+        let now = ChatContext::now_secs();
+        let response_id = executor.response_id().to_string();
+        let content = executor.final_response.clone();
+
+        // Add to UI
+        ctx.messages.push(ChatMessage {
+          id: response_id.clone(),
+          role: "assistant".to_string(),
+          content: content.clone(),
+          timestamp: now,
+        });
+
+        // Save to history
+        ctx.chat_history.write().add_message(HistoryMessage {
+          id: response_id,
+          role: "assistant".to_string(),
+          content,
+          timestamp: now,
+        });
+        ChatContext::sync_history_signals(&ctx.chat_history);
+      }
+
+      ctx.is_running.set(false);
+      break;
+    }
+
+    // Real-time UI updates
+    if executor.should_update_ui() {
+      update_ui_message(ctx, &executor);
+    }
+  }
+
+  ctx.is_running.set(false);
+}
+
+/// Update a single message in the UI
+fn update_ui_message(ctx: &mut ChatContext, executor: &AgentExecutor) {
+  let display_content = executor.display_content();
+  let target_id = executor.target_id().to_string();
+  let timestamp = ChatContext::now_secs();
+
+  let current_msgs = ctx.messages.read().clone();
+
+  if current_msgs.iter().any(|m| m.id == target_id) {
+    // Update existing message
+    let mut updated = current_msgs;
+    if let Some(msg) = updated.iter_mut().find(|m| m.id == target_id) {
+      msg.content = display_content;
+    }
+    ctx.messages.set(updated);
+  } else if !display_content.is_empty() {
+    // Add new message
+    ctx.messages.push(ChatMessage {
+      id: target_id,
+      role: "assistant".to_string(),
+      content: display_content,
+      timestamp,
+    });
+  }
+}
+
+/// Run the complete agent execution pipeline
+async fn run_agent_pipeline(
+  api_messages: Vec<crate::services::ChatMessage>,
+  ctx: &mut ChatContext,
+) {
+  let step_rx = execute_agent(api_messages).await;
+  process_agent_stream(step_rx, ctx).await;
+}
+
+// ============================================================================
+// PART 5: Public Coroutine Hooks
+// ============================================================================
+
 /// Hook for the chat coroutine that handles AI calls and streaming responses
-/// Stores abort sender globally - call abort_streaming() to stop
 pub fn use_chat_coroutine(
   messages: Signal<Vec<ChatMessage>>,
   chat_history: Signal<ChatHistoryData>,
   is_agent_running: Signal<bool>,
 ) -> Coroutine<String> {
   use_coroutine(move |mut rx: UnboundedReceiver<String>| {
-    let mut messages = messages.clone();
-    let mut chat_history = chat_history.clone();
-    let is_running = is_agent_running.clone();
-    let mut msg_counter: u64 = 0;
+    let mut ctx = ChatContext::new(messages, chat_history, is_agent_running);
     async move {
+      use futures_util::stream::StreamExt;
       while let Some(text) = rx.next().await {
-        let text: String = text;
-
-        // Add user message
-        let now_secs = SystemTime::now()
-          .duration_since(SystemTime::UNIX_EPOCH)
-          .unwrap()
-          .as_secs();
-        msg_counter += 1;
-        let user_msg_id = format!("msg-{}-{}", now_secs, msg_counter);
-        let user_msg = ChatMessage {
-          id: user_msg_id.clone(),
-          role: "user".to_string(),
-          content: text.clone(),
-          timestamp: now_secs,
-        };
-        messages.push(user_msg.clone());
-
-        // Update history
-        chat_history.write().add_message(HistoryMessage {
-          id: user_msg_id.clone(),
-          role: "user".to_string(),
-          content: text.clone(),
-          timestamp: now_secs,
-        });
-        let history_clone = (*chat_history.read()).clone();
-        let _ = chat_history.read().save();
-        chat_history.set(history_clone);
-
-        // Build message history for API (exclude system errors)
-        let api_messages: Vec<crate::services::ChatMessage> = messages
-          .read()
-          .iter()
-          .filter(|m| m.role != "system")
-          .map(|m| crate::services::ChatMessage {
-            role: m.role.clone(),
-            content: m.content.clone(),
-          })
-          .collect();
-
-        // Run agent
-        run_agent(api_messages, messages, chat_history, is_running, &mut msg_counter).await;
+        ctx.add_user_message(text);
+        let api_messages = ctx.build_api_messages();
+        run_agent_pipeline(api_messages, &mut ctx).await;
       }
     }
   })
@@ -335,38 +521,33 @@ pub fn use_regenerate_coroutine(
   is_agent_running: Signal<bool>,
 ) -> Coroutine<(String, String)> {
   use_coroutine(move |mut rx: UnboundedReceiver<(String, String)>| {
-    let mut messages = messages.clone();
-    let mut chat_history = chat_history.clone();
-    let is_running = is_agent_running.clone();
-    let mut msg_counter: u64 = 0;
+    let mut ctx = ChatContext::new(messages, chat_history, is_agent_running);
     async move {
+      use futures_util::stream::StreamExt;
       while let Some((message_id, new_content)) = rx.next().await {
-        let (message_id, new_content) = (message_id, new_content);
-
         // Update the message
-        chat_history.write().update_message(&message_id, new_content.clone());
+        ctx.chat_history.write().update_message(&message_id, new_content);
 
-        // Get index and truncate everything after
-        let idx = chat_history.read().get_message_index(&message_id);
-        if let Some(index) = idx {
-          chat_history.write().truncate_from_index(index + 1);
+        // Get index and truncate everything after (drop read before write)
+        let index = ctx.chat_history.read().get_message_index(&message_id);
+        if let Some(idx) = index {
+          ctx.chat_history.write().truncate_from_index(idx + 1);
         }
 
-        // Save and sync
-        let history_clone = (*chat_history.read()).clone();
-        let _ = chat_history.read().save();
-        chat_history.set(history_clone);
+        ChatContext::sync_history_signals(&ctx.chat_history);
 
-        // Immediately sync UI to remove old messages before starting generation
-        let current_msgs: Vec<ChatMessage> = chat_history
+        // Sync UI to remove old messages
+        let current_msgs: Vec<ChatMessage> = ctx
+          .chat_history
           .read()
           .get_current_session()
           .map(|s| s.messages.iter().cloned().map(Into::into).collect())
           .unwrap_or_default();
-        messages.set(current_msgs);
+        ctx.messages.set(current_msgs);
 
-        // Build API messages from truncated history
-        let api_messages: Vec<crate::services::ChatMessage> = chat_history
+        // Build API messages and run
+        let api_messages: Vec<crate::services::ChatMessage> = ctx
+          .chat_history
           .read()
           .get_current_session()
           .map(|s| {
@@ -381,371 +562,137 @@ pub fn use_regenerate_coroutine(
           })
           .unwrap_or_default();
 
-        // Run agent
-        run_agent(api_messages, messages, chat_history, is_running, &mut msg_counter).await;
+        run_agent_pipeline(api_messages, &mut ctx).await;
       }
     }
   })
 }
 
 /// Hook for chat coroutine with quick prompt support
-/// Accepts (text, Option<prompt>) tuples and injects the prompt prefix as a system message
 pub fn use_chat_coroutine_with_prefix(
   messages: Signal<Vec<ChatMessage>>,
   chat_history: Signal<ChatHistoryData>,
   is_agent_running: Signal<bool>,
 ) -> Coroutine<(String, Option<QuickPrompt>)> {
-  use_coroutine(
-    move |mut rx: UnboundedReceiver<(String, Option<QuickPrompt>)>| {
-      // Clone signals at the beginning
-      let mut messages = messages.clone();
-      let mut chat_history = chat_history.clone();
-      let mut is_running = is_agent_running.clone();
-      let mut msg_counter: u64 = 0;
-      async move {
-        while let Some((text, prompt)) = rx.next().await {
-          let (text, prompt): (String, Option<QuickPrompt>) = (text, prompt);
+  use_coroutine(move |mut rx: UnboundedReceiver<(String, Option<QuickPrompt>)>| {
+    let mut ctx = ChatContext::new(messages, chat_history, is_agent_running);
+    async move {
+      use futures_util::stream::StreamExt;
+      while let Some((text, prompt)) = rx.next().await {
+        // Prepend prompt prefix to user content
+        let display_content = if let Some(ref p) = prompt {
+          format!("{}{}", p.prefix, text)
+        } else {
+          text.clone()
+        };
 
-          // Mark agent as running
-          is_running.set(true);
-
-          // If a quick prompt is selected, inject system message first
-          if let Some(_) = prompt {
-            let now_secs = SystemTime::now()
-              .duration_since(SystemTime::UNIX_EPOCH)
-              .unwrap()
-              .as_secs();
-            msg_counter += 1;
-            let _system_msg_id = format!("sys-{}-{}", now_secs, msg_counter);
-
-            // Add system message with the prompt prefix (not visible in UI, but sent to API)
-            // We'll inject this in the API call, not in the UI messages
-          }
-
-          // Add user message
-          let now_millis = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-          let now_secs = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-          msg_counter += 1;
-          let user_msg_id = format!("msg-{}-{}", now_millis, msg_counter);
-
-          // Prepend prompt prefix to user content if prompt is selected
-          let display_content = if let Some(ref p) = prompt {
-            format!("{}{}", p.prefix, text)
-          } else {
-            text.clone()
-          };
-
-          let user_msg = ChatMessage {
-            id: user_msg_id.clone(),
-            role: "user".to_string(),
-            content: display_content.clone(),
-            timestamp: now_secs,
-          };
-          messages.push(user_msg.clone());
-
-          // Update history
-          chat_history.write().add_message(HistoryMessage {
-            id: user_msg_id.clone(),
-            role: "user".to_string(),
-            content: display_content,
-            timestamp: now_secs,
-          });
-          let history_clone = (*chat_history.read()).clone();
-          let _ = chat_history.read().save();
-          chat_history.set(history_clone);
-
-          // Build message history for API (exclude system errors)
-          let api_messages: Vec<crate::services::ChatMessage> = messages
-            .read()
-            .iter()
-            .filter(|m| m.role != "system")
-            .map(|m| crate::services::ChatMessage {
-              role: m.role.clone(),
-              content: m.content.clone(),
-            })
-            .collect();
-
-          // Create channel for streaming AgentStep updates
-          let (step_tx, mut step_rx) = mpsc::unbounded_channel::<AgentStep>();
-
-          // Create abort channel for interrupting streaming
-          let (abort_tx, abort_rx) = tokio::sync::broadcast::channel::<()>(1);
-          // Store globally for UI access
-          tokio::spawn(async move {
-            set_abort_sender(abort_tx).await;
-          });
-
-          // Create temporary assistant message ID for streaming updates
-          let now_millis = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-          let now_secs = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-          msg_counter += 1;
-          let assistant_msg_id = format!("msg-{}-{}", now_millis, msg_counter);
-
-          // Add initial placeholder message
-          messages.push(ChatMessage {
-            id: assistant_msg_id.clone(),
-            role: "assistant".to_string(),
-            content: "思考中...".to_string(),
-            timestamp: now_secs,
-          });
-
-          // Track intermediate steps and final answer
-          let mut intermediate_steps = Vec::new();
-          let mut final_response = String::new();
-          let mut stream_complete = false;
-          let mut is_streaming = false; // Track if we're in streaming mode
-          let mut update_counter = 0usize; // Throttle UI updates
-
-          eprintln!("=== STARTING AGENT TASK ===");
-
-          // Spawn agent in background
-          let api_messages_clone = api_messages.clone();
-          let step_tx_clone = step_tx.clone();
-          tokio::spawn(async move {
-            if let Err(e) = chat_with_tools(api_messages_clone, step_tx_clone, abort_rx).await {
-              eprintln!("[HOOKS] Agent error: {:?}", e);
-            }
-          });
-
-          // Process steps as they arrive
-          eprintln!("=== ENTERING STEP LOOP ===");
-          let mut step_count = 0;
-
-          while let Some(step) = step_rx.recv().await {
-            step_count += 1;
-            eprintln!("=== PROCESSING STEP {} ===", step_count);
-
-            match step {
-              AgentStep::Connecting(msg) => {
-                intermediate_steps.push(format!("• {}", msg));
-              }
-              AgentStep::Thinking { short, content } => {
-                if let Some(thought_content) = content {
-                  let formatted = format_thinking_content(&thought_content);
-                  if !formatted.trim().is_empty() {
-                    intermediate_steps.push(formatted);
-                  }
-                } else if !short.is_empty() {
-                  intermediate_steps.push(format!("• {}", short));
-                }
-              }
-              AgentStep::ToolCall { name, .. } => {
-                intermediate_steps.push(format!("• ⏳ 调用 {}", name));
-              }
-              AgentStep::ToolResult { name, .. } => {
-                if let Some(pos) = intermediate_steps.iter().rposition(|s| s.contains("⏳")) {
-                  intermediate_steps[pos] = format!("• ✓ 调用 {}", name);
-                } else {
-                  intermediate_steps.push(format!("• ✓ 调用 {}", name));
-                }
-              }
-              AgentStep::Chunk(chunk) => {
-                // Start streaming mode - clear intermediate steps and show response
-                if !is_streaming {
-                  is_streaming = true;
-                  intermediate_steps.clear();
-                }
-                final_response.push_str(&chunk);
-              }
-              AgentStep::Final => {
-                stream_complete = true;
-              }
-            }
-
-            // When stream completes, save final message
-            if stream_complete && !final_response.is_empty() {
-              eprintln!("=== STREAM COMPLETE, SAVING FINAL MESSAGE ===");
-
-              let current_msgs = messages.read().clone();
-              if let Some(pos) = current_msgs.iter().position(|m| m.id == assistant_msg_id) {
-                let mut updated = current_msgs;
-                updated[pos].content = final_response.clone();
-                messages.set(updated);
-
-                chat_history.write().add_message(HistoryMessage {
-                  id: assistant_msg_id.clone(),
-                  role: "assistant".to_string(),
-                  content: final_response.clone(),
-                  timestamp: now_secs,
-                });
-                let history_clone = (*chat_history.read()).clone();
-                let _ = chat_history.read().save();
-                chat_history.set(history_clone);
-
-                is_running.set(false);
-                break;
-              }
-            }
-
-            // Update UI in real-time (throttled to avoid excessive re-renders)
-            if !stream_complete {
-              update_counter += 1;
-
-              // Only update UI every 5 chunks during streaming to reduce re-renders
-              let should_update = if is_streaming {
-                update_counter % 5 == 0
-              } else {
-                true // Always update for tool steps
-              };
-
-              if should_update {
-                let display_content = if is_streaming {
-                // Show streaming response
-                final_response.clone()
-              } else {
-                // Show intermediate steps
-                intermediate_steps.join("\n")
-              };
-
-              eprintln!(
-                "=== UPDATING SIGNAL (step {}, content length: {}) ===",
-                step_count,
-                display_content.len()
-              );
-
-              let current_msgs = messages.read().clone();
-              if let Some(pos) = current_msgs.iter().position(|m| m.id == assistant_msg_id) {
-                let mut updated = current_msgs;
-                updated[pos].content = display_content;
-                updated[pos].timestamp = now_secs;
-                messages.set(updated);
-              } else {
-                drop(current_msgs);
-                messages.push(ChatMessage {
-                  id: assistant_msg_id.clone(),
-                  role: "assistant".to_string(),
-                  content: display_content,
-                  timestamp: now_secs,
-                });
-              }
-              }
-            }
-          }
-          eprintln!("=== STEP LOOP DONE ===");
-
-          is_running.set(false);
-        }
+        ctx.add_user_message(display_content);
+        let api_messages = ctx.build_api_messages();
+        run_agent_pipeline(api_messages, &mut ctx).await;
       }
-    },
-  )
+    }
+  })
 }
 
-/// Format thinking content: show text directly, filter out JSON tool calls
-fn format_thinking_content(content: &str) -> String {
-  let mut result = Vec::new();
-  let mut in_tool_call = false;
-  let mut brace_depth = 0;
+// ============================================================================
+// PART 6: UI Interaction Hooks
+// ============================================================================
 
-  for line in content.lines() {
-    if in_tool_call {
-      // Continue processing multi-line JSON
-      for c in line.chars() {
-        if c == '{' {
-          brace_depth += 1;
-        } else if c == '}' {
-          brace_depth -= 1;
-          if brace_depth == 0 {
-            in_tool_call = false;
-            eprintln!("[FILTERED TOOL CALL END]");
-            break;
-          }
-        }
-      }
-      continue; // Skip entire line while in tool call
-    }
+/// Scroll manager - encapsulates scroll-related JavaScript interactions
+struct ScrollManager;
 
-    // Check for tool_call pattern
-    if let Some(start_idx) = line.find("{\"tool_call\"") {
-      // Count braces to find where JSON ends
-      let mut depth = 0;
-      let mut found_end = false;
-      let chars: Vec<char> = line.chars().collect();
+impl ScrollManager {
+  const AUTO_MODE: &'static str = "auto";
+  const MANUAL_MODE: &'static str = "manual";
+  const BOTTOM_THRESHOLD: i64 = 50;
+  const TOP_THRESHOLD: i64 = 150;
 
-      for i in start_idx..chars.len() {
-        if chars[i] == '{' {
-          depth += 1;
-        } else if chars[i] == '}' {
-          depth -= 1;
-          if depth == 0 {
-            found_end = true;
-            eprintln!("[FILTERED TOOL CALL (single line)]");
-            // Keep content before the tool call
-            if start_idx > 0 {
-              let before = line[..start_idx].trim();
-              if !before.is_empty() {
-                result.push(before.to_string());
-              }
-            }
-            break;
-          }
-        }
-      }
+  fn init_script(container_id: &str) -> String {
+    format!(
+      r#"(function() {{
+        const container = document.getElementById("{}");
+        if (!container) return;
 
-      if !found_end {
-        // Multi-line JSON, start filtering
-        in_tool_call = true;
-        brace_depth = 1;
-        // Keep content before the tool call
-        if start_idx > 0 {
-          let before = line[..start_idx].trim();
-          if !before.is_empty() {
-            result.push(before.to_string());
-          }
-        }
-      }
-      continue;
-    }
+        window.__veldScrollState = '{}';
 
-    // Normal line
-    if !line.trim().is_empty() {
-      result.push(line.to_string());
-    }
+        container.addEventListener('scroll', () => {{
+          const scrollTop = container.scrollTop;
+          const scrollHeight = container.scrollHeight;
+          const clientHeight = container.clientHeight;
+          const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+          if (distanceFromBottom > {}) {{
+            window.__veldScrollState = '{}';
+          }} else if (distanceFromBottom < {}) {{
+            window.__veldScrollState = '{}';
+          }}
+        }}, {{ passive: true }});
+      }})()"#,
+      container_id,
+      Self::AUTO_MODE,
+      Self::TOP_THRESHOLD,
+      Self::MANUAL_MODE,
+      Self::BOTTOM_THRESHOLD,
+      Self::AUTO_MODE
+    )
   }
 
-  // Handle unclosed tool call
-  if in_tool_call {
-    eprintln!("[WARNING] Unclosed tool call JSON at end of content");
+  fn scroll_to_bottom_script(container_id: &str) -> String {
+    format!(
+      r#"(function() {{
+        const container = document.getElementById("{}");
+        if (!container) return;
+
+        if (window.__veldScrollState === '{}') {{
+          container.scrollTo({{ top: container.scrollHeight, behavior: "smooth" }});
+        }}
+      }})()"#,
+      container_id,
+      Self::AUTO_MODE
+    )
   }
 
-  format!("• {}", result.join("\n"))
+  fn force_scroll_to_bottom_script(container_id: &str) -> String {
+    format!(
+      r#"(function() {{
+        const container = document.getElementById("{}");
+        if (!container) return;
+
+        if (window.__veldScrollState !== '{}') {{
+          container.scrollTo({{ top: container.scrollHeight, behavior: "smooth" }});
+        }}
+      }})()"#,
+      container_id,
+      Self::MANUAL_MODE
+    )
+  }
+
+  fn init(container_id: &str) {
+    document::eval(Self::init_script(container_id).as_str());
+  }
+
+  fn scroll_if_auto(container_id: &str) {
+    document::eval(Self::scroll_to_bottom_script(container_id).as_str());
+  }
+
+  fn force_scroll(container_id: &str) {
+    document::eval(Self::force_scroll_to_bottom_script(container_id).as_str());
+  }
 }
 
 /// Hook for message sync with chat history
-///
-/// Syncs messages with current session. Skips sync if:
-/// - Session has no messages (prevents overwriting user input)
-/// - Agent is in progress (has placeholder markers)
 pub fn use_message_sync(
   mut messages: Signal<Vec<ChatMessage>>,
   chat_history: Signal<ChatHistoryData>,
   is_agent_running: Signal<bool>,
 ) {
-  // Track both messages and chat_history explicitly
-  let messages_dep = messages.clone();
-  let chat_history_dep = chat_history.clone();
-  let is_running_dep = is_agent_running.clone();
-
   use_effect(move || {
-    // Explicitly read all signals to track dependencies
-    let _ = messages_dep();
-    let _ = chat_history_dep();
-    let is_running = is_running_dep();
+    let _ = messages();
+    let _ = chat_history();
+    let is_running = is_agent_running();
 
     if let Some(session) = chat_history().get_current_session() {
-      // Only sync if the session has messages
-      // This prevents overwriting user input when switching to an empty session
+      // Skip sync if session is empty (prevents overwriting user input)
       if session.messages.is_empty() {
         return;
       }
@@ -753,7 +700,7 @@ pub fn use_message_sync(
       let current_msgs: Vec<ChatMessage> =
         session.messages.iter().cloned().map(Into::into).collect();
 
-      // Only sync if there's no in-progress agent (using explicit flag instead of content detection)
+      // Only sync if not running and messages differ
       if !is_running && messages() != current_msgs {
         messages.set(current_msgs);
       }
@@ -771,29 +718,42 @@ pub fn use_auto_scroll(
     let current_count = messages().len();
     let prev_count = last_message_count();
 
-    // Update last message count
     if current_count != prev_count {
       last_message_count.set(current_count);
     }
 
     // Only scroll if new messages were added
     if current_count > prev_count {
-      let container_id = scroll_container_id.clone();
-      document::eval(
-        format!(
-          r#"(function() {{
-                    const container = document.getElementById("{}");
-                    if (!container) return;
+      ScrollManager::scroll_if_auto(&scroll_container_id);
+    }
+  });
+}
 
-                    // Check if we should auto-scroll (only if currently in auto mode)
-                    if (window.__veldScrollState === 'auto') {{
-                        container.scrollTo({{ top: container.scrollHeight, behavior: "smooth" }});
-                    }}
-                }})()"#,
-          container_id
-        )
-        .as_str(),
-      );
+/// Hook for auto-scroll during streaming response
+pub fn use_streaming_scroll(
+  messages: Signal<Vec<ChatMessage>>,
+  scroll_container_id: String,
+  is_agent_running: Signal<bool>,
+) {
+  let mut last_content = use_signal(|| String::new());
+
+  use_effect(move || {
+    let msgs = messages();
+    let is_running = is_agent_running();
+
+    if !is_running {
+      return;
+    }
+
+    if let Some(last_msg) = msgs.last() {
+      if last_msg.role == "assistant" {
+        let current_content = last_msg.content.clone();
+
+        if current_content != last_content() {
+          last_content.set(current_content.clone());
+          ScrollManager::force_scroll(&scroll_container_id);
+        }
+      }
     }
   });
 }
@@ -801,34 +761,6 @@ pub fn use_auto_scroll(
 /// Hook for initializing scroll state tracking
 pub fn use_scroll_state_init(scroll_container_id: String) {
   use_effect(move || {
-    let container_id = scroll_container_id.clone();
-    document::eval(
-      format!(
-        r#"(function() {{
-                const container = document.getElementById("{}");
-                if (!container) return;
-
-                // Initialize scroll state
-                window.__veldScrollState = 'auto'; // 'auto' or 'manual'
-
-                container.addEventListener('scroll', () => {{
-                    const scrollTop = container.scrollTop;
-                    const scrollHeight = container.scrollHeight;
-                    const clientHeight = container.clientHeight;
-                    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-                    // If user scrolled up more than 150px from bottom, switch to manual mode
-                    if (distanceFromBottom > 150) {{
-                        window.__veldScrollState = 'manual';
-                    }} else if (distanceFromBottom < 50) {{
-                        // User scrolled back near bottom, switch back to auto mode
-                        window.__veldScrollState = 'auto';
-                    }}
-                }}, {{ passive: true }});
-            }})()"#,
-        container_id
-      )
-      .as_str(),
-    );
+    ScrollManager::init(&scroll_container_id);
   });
 }

@@ -269,10 +269,46 @@ pub fn InputArea(
     div {
       class: "px-4 py-3 border-t border-border relative z-10 shadow-custom",
 
-      // Model selector and MCP status (above input, compact row)
-      if !enabled_providers.is_empty() || !enabled_mcp_servers.is_empty() {
+      // Input area (full width)
+      div {
+        class: "flex items-center gap-2 px-3 py-2 bg-bg-primary text-text-primary border border-border rounded-lg focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all",
+
+        // Active command chip (inside input)
+        if let Some(ref cmd) = active_command() {
+          div {
+            class: "flex items-center gap-2 px-2 py-1 bg-primary/10 border border-primary/30 rounded-md text-sm font-medium text-primary whitespace-nowrap",
+            span {
+              class: "text-sm font-mono",
+              "/{cmd.keyword}"
+            }
+            button {
+              class: "ml-1 text-text-secondary hover:text-text-primary transition-colors text-sm",
+              onclick: move |_| clear_command(),
+              "×"
+            }
+          }
+        }
+
+        // User content input
+        textarea {
+          class: "user-content-input chat-input-textarea flex-1 min-w-0 bg-transparent border-none resize-none outline-none font-mono text-sm",
+          rows: 1,
+          placeholder: placeholder(),
+          value: user_content(),
+          disabled: !has_api_key || is_agent_running(),
+          oninput: handle_input,
+          onkeydown: handle_keydown,
+        }
+      }
+
+      // Control bar: model selector, MCP status, send button
+      div {
+        class: "flex items-center justify-between gap-2 mt-2",
+
+        // Left: model selector and MCP status
         div {
-          class: "flex items-center gap-2 mb-2",
+          class: "flex items-center gap-2 flex-1 min-w-0",
+
           // Provider selector
           if !enabled_providers.is_empty() {
             select {
@@ -309,45 +345,8 @@ pub fn InputArea(
             }
           }
         }
-      }
 
-      // Input and send button row
-      div {
-        class: "flex gap-2 items-center",
-
-        // Combined input container (command chip + textarea inside)
-        div {
-          class: "flex-1 flex items-center gap-2 px-3 py-2 bg-bg-primary text-text-primary border border-border rounded-lg focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all",
-
-          // Active command chip (inside input)
-          if let Some(ref cmd) = active_command() {
-            div {
-              class: "flex items-center gap-2 px-2 py-1 bg-primary/10 border border-primary/30 rounded-md text-sm font-medium text-primary whitespace-nowrap",
-              span {
-                class: "text-sm font-mono",
-                "/{cmd.keyword}"
-              }
-              button {
-                class: "ml-1 text-text-secondary hover:text-text-primary transition-colors text-sm",
-                onclick: move |_| clear_command(),
-                "×"
-              }
-            }
-          }
-
-          // User content input
-          textarea {
-            class: "user-content-input chat-input-textarea flex-1 min-w-0 bg-transparent border-none resize-none outline-none font-mono text-sm",
-            rows: 1,
-            placeholder: placeholder(),
-            value: user_content(),
-            disabled: !has_api_key || is_agent_running(),
-            oninput: handle_input,
-            onkeydown: handle_keydown,
-          }
-        }
-
-        // Show Stop button when agent running, Send button otherwise
+        // Right: send/stop button
         if is_agent_running() {
           button {
             class: "px-4 py-2 bg-error text-white rounded-lg hover:bg-error/90 transition-all whitespace-nowrap",

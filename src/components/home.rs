@@ -92,6 +92,13 @@ pub fn Home() -> Element {
     scroll_container_id.to_string(),
   );
 
+  // Auto-scroll during streaming response
+  use_streaming_scroll(
+    messages.clone(),
+    scroll_container_id.to_string(),
+    is_agent_running.clone(),
+  );
+
   // Chat coroutine for AI calls
   let tx = use_chat_coroutine(messages.clone(), chat_history.clone(), is_agent_running);
   let tx_with_prefix =

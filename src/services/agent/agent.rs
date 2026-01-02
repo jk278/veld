@@ -232,7 +232,14 @@ pub async fn chat_with_tools(
 
           // Check if we have enough content to detect tool call
           if accumulated.len() > 50 {
-            if parse_tool_call(&accumulated).is_ok() {
+            // Check for likely tool call pattern (starts with { and contains "tool_call")
+            // This prevents streaming incomplete tool_call JSON as chunks
+            let likely_tool_call = accumulated.trim().starts_with('{')
+              && (accumulated.contains("\"tool_call\"")
+                || accumulated.contains("\"Tool_call\"")
+                || accumulated.contains("\"TOOL_CALL\""));
+
+            if likely_tool_call || parse_tool_call(&accumulated).is_ok() {
               is_tool_call = true;
               // Collect remaining response
               loop {
@@ -295,7 +302,13 @@ pub async fn chat_with_tools(
 
     // If accumulated but not decided (short response), check for tool call
     if !is_tool_call && !accumulated.is_empty() {
-      if parse_tool_call(&accumulated).is_ok() {
+      // Check for likely tool call pattern (same heuristic as above)
+      let likely_tool_call = accumulated.trim().starts_with('{')
+        && (accumulated.contains("\"tool_call\"")
+          || accumulated.contains("\"Tool_call\"")
+          || accumulated.contains("\"TOOL_CALL\""));
+
+      if likely_tool_call || parse_tool_call(&accumulated).is_ok() {
         is_tool_call = true;
       } else {
         // Not a tool call, stream it (no byte-level splitting)

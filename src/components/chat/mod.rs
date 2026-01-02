@@ -17,7 +17,7 @@ pub use sidebar::ChatSidebar;
 // Re-export hooks
 pub use hooks::{
   abort_streaming, use_auto_scroll, use_chat_coroutine, use_chat_coroutine_with_prefix,
-  use_message_sync, use_regenerate_coroutine, use_scroll_state_init,
+  use_message_sync, use_regenerate_coroutine, use_scroll_state_init, use_streaming_scroll,
 };
 
 // Re-export handlers

@@ -6,6 +6,32 @@ use crate::chat_history::{ChatHistoryData, ChatMessage as HistoryMessage};
 use crate::config::AppConfig;
 use dioxus::prelude::*;
 
+// ============================================================================
+// Type Conversions
+// ============================================================================
+
+impl From<HistoryMessage> for ChatMessage {
+  fn from(msg: HistoryMessage) -> Self {
+    ChatMessage {
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp,
+    }
+  }
+}
+
+impl From<ChatMessage> for HistoryMessage {
+  fn from(msg: ChatMessage) -> Self {
+    HistoryMessage {
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp,
+    }
+  }
+}
+
 /// Create new chat handler
 ///
 /// Returns a FnMut closure that requires ownership

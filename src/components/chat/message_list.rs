@@ -1,10 +1,12 @@
-//! Message list component
-//! 消息列表组件 - 显示聊天消息
+//! Message list component - Simplified rendering
+//! 消息列表组件 - 简化渲染逻辑
 
 use crate::components::icons::ChatIcon;
 use crate::components::markdown::{MarkdownContent, PlainTextContent};
+use crate::services::agent::Step;
 use crate::theme::use_is_dark;
 use dioxus::prelude::*;
+use serde_json;
 
 /// Chat message for display
 #[derive(Clone, Debug, PartialEq)]
@@ -96,8 +98,8 @@ fn MessageBubble(
   #[props(default)] on_regenerate: Option<EventHandler<String>>,
   #[props(default)] is_agent_running: bool,
 ) -> Element {
-  // Check if this is an intermediate step (contains bullet point marker)
-  let is_intermediate = message.content.contains("• ");
+  // Check if this is an intermediate step (contains tool call or info)
+  let is_step = message.id.starts_with("tool-") || message.id.starts_with("info-");
 
   // Check if this message is being edited
   let is_editing = edit_state
@@ -128,7 +130,7 @@ fn MessageBubble(
         AssistantMessageBubble {
           content: message.content.clone(),
           timestamp: message.timestamp,
-          is_intermediate,
+          is_step,
           message_id: message.id.clone(),
           on_regenerate: on_regenerate.clone(),
           is_agent_running,
@@ -157,10 +159,10 @@ fn UserMessageBubble(
     }
   });
 
-  // Clone values for closures
+  // Clone for closures
   let message_id_key = message_id.clone();
-  let message_id_confirm = message_id.clone();
   let message_id_cancel = message_id.clone();
+  let message_id_save = message_id.clone();
   let message_id_edit = message_id.clone();
   let content_clone = content.clone();
 
@@ -168,7 +170,7 @@ fn UserMessageBubble(
     div {
       class: "w-[80%] max-w-2xl flex justify-end flex-col items-end gap-2",
 
-      // 编辑模式：独立编辑区域
+      // Edit mode
       if is_editing {
         div {
           class: "w-full flex flex-col gap-2",
@@ -200,7 +202,7 @@ fn UserMessageBubble(
               class: "px-3 py-1 text-sm bg-primary text-white rounded hover:bg-primary/90 transition-colors",
               onclick: move |_| {
                 if let Some(ref handler) = on_edit {
-                  handler((message_id_confirm.clone(), local_edit()));
+                  handler((message_id_save.clone(), local_edit()));
                 }
               },
               "保存 (Ctrl+Enter)"
@@ -208,8 +210,7 @@ fn UserMessageBubble(
           }
         }
       } else {
-        // TODO: 选中用户消息复制时末尾多一个换行符（浏览器块级元素复制行为）
-        // 已优化：p→span（PlainTextContent）
+        // Normal display
         div {
           class: "px-4 py-2.5 bg-bg-secondary text-text-primary rounded-2xl rounded-tr-md",
           PlainTextContent {
@@ -235,17 +236,9 @@ fn UserMessageBubble(
   }
 }
 
-/// Parse a thinking step line, returning (short, optional_detail)
-fn parse_thinking_step(line: &str) -> Option<(String, Option<String>)> {
-  line.strip_prefix("• ").map(|step_text| {
-    if let Some(idx) = step_text.find('|') {
-      let short = step_text[..idx].to_string();
-      let detail = step_text[idx + 1..].to_string();
-      (short, Some(detail))
-    } else {
-      (step_text.to_string(), None)
-    }
-  })
+/// Parse step from JSON content
+fn parse_step(content: &str) -> Option<Step> {
+  serde_json::from_str(content).ok()
 }
 
 /// Assistant message bubble
@@ -253,7 +246,7 @@ fn parse_thinking_step(line: &str) -> Option<(String, Option<String>)> {
 fn AssistantMessageBubble(
   content: String,
   timestamp: u64,
-  is_intermediate: bool,
+  is_step: bool,
   #[props(default)] message_id: String,
   #[props(default)] on_regenerate: Option<EventHandler<String>>,
   #[props(default)] is_agent_running: bool,
@@ -261,13 +254,9 @@ fn AssistantMessageBubble(
   let is_dark = use_is_dark();
   let mut copy_status = use_signal(|| false);
 
-  // Use dioxus's spawn for async tasks in the UI context
   use dioxus::prelude::spawn;
 
-  // Count steps for the summary
-  let step_count = content.matches("• ").count();
-
-  // Copy handler using arboard (native clipboard)
+  // Copy handler
   let copy_message = {
     let content = content.clone();
     move |_| {
@@ -285,7 +274,7 @@ fn AssistantMessageBubble(
     }
   };
 
-  // Create regenerate handler outside rsx - needs to own the handler
+  // Regenerate handler
   let show_regenerate = on_regenerate.is_some() && !is_agent_running;
   let regenerate_handler = {
     let msg_id = message_id.clone();
@@ -299,61 +288,17 @@ fn AssistantMessageBubble(
   rsx! {
     div {
       class: "max-w-2xl w-full",
-      if is_intermediate {
-        // Intermediate steps: collapsible panel
-        div {
-          class: "thinking-process",
-          details {
 
-            summary {
-              class: "thinking-summary cursor-pointer",
-              "思考过程"
-              if step_count > 0 {
-                span {
-                  class: "ml-2 text-text-muted",
-                  "({step_count}步)"
-                }
-              }
-            }
-            div {
-              class: "thinking-content",
-              // Parse and render each step (split by bullet point, not newline)
-              // Filter out empty items before rendering
-              for part in content
-                  .split("• ")
-                  .skip(1)
-                  .filter_map(|part| {
-                      parse_thinking_step(&format!("• {}", part))
-                          .filter(|(short, _)| !short.trim().is_empty())
-                  })
-              {
-                div {
-                  class: "thinking-item",
-                  div {
-                    class: "thinking-item-short",
-                    MarkdownContent {
-                      content: part.0.clone(),
-                      class: String::new(),
-                      dark: is_dark(),
-                    }
-                  }
-                  if let Some(detail_text) = &part.1 {
-                    div {
-                      class: "thinking-item-detail",
-                      MarkdownContent {
-                        content: detail_text.clone(),
-                        class: String::new(),
-                        dark: is_dark(),
-                      }
-                    }
-                  }
-                }
-              }
-            }
+      if is_step {
+        // Render step (tool call or info)
+        if let Some(step) = parse_step(&content) {
+          StepRenderer {
+            step,
+            is_dark: is_dark(),
           }
         }
       } else {
-        // Final answer: markdown rendering with action buttons at bottom
+        // Final answer: markdown rendering with action buttons
         div {
           div {
             class: "markdown-body w-full text-sm text-text-primary",
@@ -363,7 +308,7 @@ fn AssistantMessageBubble(
               dark: is_dark(),
             }
           }
-          // Action buttons at bottom - only show when not running
+          // Action buttons at bottom
           if !is_agent_running {
             div {
               class: "flex gap-2 mt-3 flex-wrap",
@@ -388,3 +333,97 @@ fn AssistantMessageBubble(
   }
 }
 
+/// Step renderer - display tool calls and info messages
+#[component]
+fn StepRenderer(step: Step, is_dark: bool) -> Element {
+  match step {
+    Step::Tool { name, args, result, status, .. } => {
+      use crate::services::agent::ToolStatus;
+
+      let (icon, icon_class, status_text) = match status {
+        ToolStatus::Pending => ("⏳", "text-text-muted", "等待中..."),
+        ToolStatus::Running => ("🔄", "text-primary", "执行中..."),
+        ToolStatus::Success => ("✓", "text-success", "完成"),
+        ToolStatus::Error => ("✗", "text-error", "失败"),
+      };
+
+      rsx! {
+        details {
+          class: "px-4 py-3 bg-bg-secondary border border-border rounded-lg",
+          summary {
+            class: "cursor-pointer flex items-center gap-2 text-sm select-none",
+            span {
+              class: "text-primary",
+              "🔧"
+            }
+            span {
+              class: "font-medium text-text-primary",
+              "调用 {name}"
+            }
+            span {
+              class: format!("text-xs {}", icon_class),
+              {icon}
+              {status_text}
+            }
+          }
+          div {
+            class: "mt-3 text-xs text-text-muted space-y-1",
+            div {
+              strong { "参数: " }
+              code {
+                class: "bg-bg-primary px-2 py-1 rounded text-xs",
+                {format!("{:?}", args)}
+              }
+            }
+            if let Some(res) = result {
+              // Try to parse as JSON and extract content
+              div {
+                strong { "结果: " }
+                div {
+                  class: "mt-2 text-xs text-text-secondary max-h-96 overflow-y-auto",
+                  {
+                    let display_content = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&res) {
+                      // MCP format: {"content": [{"text": "...", "type": "text"}]}
+                      json["content"]
+                        .as_array()
+                        .and_then(|arr| arr.first())
+                        .and_then(|obj| obj["text"].as_str())
+                        .unwrap_or(&res)
+                        .to_string()
+                    } else {
+                      res.clone()
+                    };
+                    rsx! {
+                      MarkdownContent {
+                        content: display_content,
+                        class: String::new(),
+                        dark: is_dark,
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    Step::Info { text, .. } => {
+      rsx! {
+        div {
+          class: "px-4 py-2 bg-bg-secondary/50 border border-border/50 rounded-lg text-sm text-text-muted",
+          {text}
+        }
+      }
+    }
+    Step::Answer { .. } => {
+      // Should not render Answer as step, but handle gracefully
+      rsx! {
+        div {
+          class: "px-4 py-2 bg-bg-secondary rounded-lg text-sm text-text-muted",
+          "..."
+        }
+      }
+    }
+  }
+}

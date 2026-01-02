@@ -1,17 +1,18 @@
-//! MCP Agent - Main entry point
-//! MCP 代理主入口
+//! MCP Agent - Tool is Result, Result is Tool
+//! MCP 代理 - 工具即结果，结果即工具
 
 use super::executor::execute_tool_call;
-use super::parser::parse_tool_call;
-use super::stream::stream_chat_response;
-use super::types::{AgentError, AgentStep, Result};
+use super::types::{AgentError, Result, Step, ToolCall};
 use crate::config::AppConfig;
 use crate::services::ai_client::{AiClient, ChatMessage};
 use crate::services::mcp_client::{McpClient, McpTool};
 use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 
-/// Build tools prompt for AI (generic MCP tool schema handling)
+// ============================================================================
+// Part 1: Tool Prompt Builder
+// ============================================================================
+
 fn build_tools_prompt(tools: &[McpTool]) -> String {
   if tools.is_empty() {
     return "No tools available.".to_string();
@@ -20,7 +21,6 @@ fn build_tools_prompt(tools: &[McpTool]) -> String {
   tools
     .iter()
     .map(|tool| {
-      // Generic JSON Schema parsing for any MCP tool
       let schema = format_tool_schema(&tool.input_schema);
       format!("**{}**: {}\n\n{}", tool.name, tool.description, schema)
     })
@@ -28,7 +28,6 @@ fn build_tools_prompt(tools: &[McpTool]) -> String {
     .join("\n\n")
 }
 
-/// Format tool input schema for AI (generic JSON Schema handler)
 fn format_tool_schema(schema: &Value) -> String {
   let properties = schema.get("properties");
   let required = schema.get("required");
@@ -37,36 +36,19 @@ fn format_tool_schema(schema: &Value) -> String {
     Some(props) if props.is_object() => {
       let required_list: Vec<String> = required
         .and_then(|r| r.as_array())
-        .map(|arr| {
-          arr
-            .iter()
-            .filter_map(|v| v.as_str().map(String::from))
-            .collect()
-        })
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
 
       props
         .as_object()
         .unwrap()
         .iter()
-        .map(|(param_name, param_def)| {
-          let param_type = param_def
-            .get("type")
-            .and_then(|t| t.as_str())
-            .unwrap_or("any");
-
-          let description = param_def
-            .get("description")
-            .and_then(|d| d.as_str())
-            .unwrap_or("");
-
-          let is_required = required_list.contains(param_name);
+        .map(|(name, def)| {
+          let param_type = def.get("type").and_then(|t| t.as_str()).unwrap_or("any");
+          let description = def.get("description").and_then(|d| d.as_str()).unwrap_or("");
+          let is_required = required_list.contains(name);
           let req_marker = if is_required { " (required)" } else { "" };
-
-          format!(
-            "- `{}: {}`{}: {}",
-            param_name, param_type, req_marker, description
-          )
+          format!("- `{}: {}`{}: {}", name, param_type, req_marker, description)
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -75,37 +57,28 @@ fn format_tool_schema(schema: &Value) -> String {
   }
 }
 
-/// Process chat with MCP tool support
-/// Sends AgentStep updates through the channel for progressive rendering
-/// abort_rx: optional receiver for abort signal (send any value to abort)
-pub async fn chat_with_tools(
-  messages: Vec<ChatMessage>,
-  tx: mpsc::UnboundedSender<AgentStep>,
-  mut abort_rx: tokio::sync::broadcast::Receiver<()>,
-) -> Result<String> {
-  let client = AiClient::new()?;
+// ============================================================================
+// Part 2: MCP Connection
+// ============================================================================
 
-  // Connect to MCP servers concurrently
+struct McpConnections {
+  clients: Vec<McpClient>,
+  tools: Vec<McpTool>,
+}
+
+async fn connect_mcp_servers(tx: &mpsc::UnboundedSender<Step>) -> Option<McpConnections> {
   let (sync_tx, sync_rx) = oneshot::channel();
-  let config = AppConfig::load().map_err(|e| AgentError::Ai(e.to_string()))?;
-  let server_configs: Vec<(String, String, Vec<String>, Option<std::collections::HashMap<String, String>>)> = config
+  let config = AppConfig::load().ok()?;
+
+  let server_configs: Vec<_> = config
     .mcp
     .servers
     .iter()
-    .map(|s| {
-      (
-        s.name.clone(),
-        s.command.clone(),
-        s.args.clone(),
-        s.env.clone(),
-      )
-    })
+    .map(|s| (s.name.clone(), s.command.clone(), s.args.clone(), s.env.clone()))
     .collect();
 
-  // Use spawn_blocking to run blocking MCP operations in a separate thread
-  // This avoids blocking the async runtime and integrates properly with Dioxus
   tokio::task::spawn_blocking(move || {
-    let mut results: Vec<(String, McpClient, Vec<McpTool>)> = Vec::new();
+    let mut results: Vec<(String, Option<McpClient>, Vec<McpTool>)> = Vec::new();
 
     for (name, command, args, env) in server_configs {
       eprintln!("[MCP] Connecting to {}...", name);
@@ -113,14 +86,16 @@ pub async fn chat_with_tools(
         Ok(mut client) => match client.list_tools() {
           Ok(tools) => {
             eprintln!("[MCP] {} loaded {} tools", name, tools.len());
-            results.push((name, client, tools));
+            results.push((name, Some(client), tools));
           }
           Err(e) => {
             eprintln!("[MCP] Failed to list tools for {}: {}", name, e);
+            results.push((name, None, Vec::new()));
           }
         },
         Err(e) => {
           eprintln!("[MCP] Failed to connect to {}: {}", name, e);
+          results.push((name, None, Vec::new()));
         }
       }
     }
@@ -128,65 +103,135 @@ pub async fn chat_with_tools(
     let _ = sync_tx.send(results);
   });
 
-  // Wait with timeout (90 seconds for npx to download packages on first run)
-  let results = match tokio::time::timeout(std::time::Duration::from_secs(90), sync_rx).await {
-    Ok(Ok(r)) => r,
-    Ok(Err(_)) => {
-      let _ = tx.send(AgentStep::Connecting(
-        "连接失败，切换到普通对话".to_string(),
-      ));
-      return stream_chat_response(client, messages, tx, abort_rx.resubscribe()).await;
-    }
-    Err(_) => {
-      let _ = tx.send(AgentStep::Connecting(
-        "连接超时，切换到普通对话".to_string(),
-      ));
-      return stream_chat_response(client, messages, tx, abort_rx.resubscribe()).await;
-    }
-  };
+  let results = tokio::time::timeout(std::time::Duration::from_secs(90), sync_rx)
+    .await
+    .ok()?
+    .ok()?;
 
-  let mut all_tools: Vec<McpTool> = Vec::new();
-  let mut clients: Vec<McpClient> = Vec::new();
+  let mut clients = Vec::new();
+  let mut all_tools = Vec::new();
 
   for (name, client, tools) in results {
-    let _ = tx.send(AgentStep::Connecting(format!(
-      "{}: 加载了 {} 个工具",
-      name,
-      tools.len()
-    )));
-    all_tools.extend(tools);
-    clients.push(client);
+    if let Some(client) = client {
+      let _ = tx.send(Step::info(format!("conn-{}", name), format!("{}: 加载了 {} 个工具", name, tools.len())));
+      all_tools.extend(tools);
+      clients.push(client);
+    }
   }
 
   if all_tools.is_empty() {
-    let _ = tx.send(AgentStep::Connecting(
-      "没有加载到工具，切换到普通对话".to_string(),
-    ));
-    return stream_chat_response(client, messages, tx, abort_rx.resubscribe()).await;
+    let _ = tx.send(Step::info("no-tools", "没有加载到工具，切换到普通对话".to_string()));
+    return None;
   }
 
-  // Build system prompt with tool definitions
-  let tools_prompt = build_tools_prompt(&all_tools);
+  Some(McpConnections {
+    clients,
+    tools: all_tools,
+  })
+}
 
-  // Build system instructions - strict format enforcement
+// ============================================================================
+// Part 3: Tool Call Extraction
+// ============================================================================
+
+/// Extract tool call from text (supports embedded in content)
+fn extract_tool_call(text: &str) -> Option<ToolCall> {
+  let trimmed = text.trim();
+
+  // Try direct JSON parse first (handles pure tool call)
+  if let Ok(v) = serde_json::from_str::<Value>(trimmed) {
+    if let Some(tc) = v.get("tool_call") {
+      return serde_json::from_value(tc.clone()).ok();
+    }
+  }
+
+  // Fallback: extract embedded tool_call from mixed content
+  if trimmed.contains("\"tool_call\"") {
+    // Find the position after "tool_call":
+    if let Some(key_pos) = trimmed.find("\"tool_call\"") {
+      // Find the colon after the key
+      let after_key = &trimmed[key_pos + "\"tool_call\"".len()..];
+      if let Some(colon_pos) = after_key.find(':') {
+        // Find the opening brace
+        let after_colon = &after_key[colon_pos + 1..];
+        if let Some(brace_start) = after_colon.find('{') {
+          let from_brace = &after_colon[brace_start + 1..];
+
+          // Find matching closing brace and collect chars to avoid UTF-8 boundary issues
+          let mut brace_count = 1usize;
+          let mut in_string = false;
+          let mut brace_content = String::new();
+
+          for c in from_brace.chars() {
+            brace_content.push(c);
+            match c {
+              '"' if !in_string => in_string = true,
+              '"' if in_string => in_string = false,
+              '{' if !in_string => brace_count += 1,
+              '}' if !in_string => {
+                brace_count -= 1;
+                if brace_count == 0 {
+                  break;
+                }
+              }
+              _ => {}
+            }
+
+            // Safety limit: don't scan too far (but allow large tool calls)
+            if brace_content.len() > 50000 {
+              eprintln!("[AGENT] Tool call extraction hit limit, truncating");
+              break;
+            }
+          }
+
+          if !brace_content.is_empty() {
+            eprintln!("[AGENT] Extracted tool JSON ({} chars): {}", brace_content.len(), brace_content);
+            return serde_json::from_str(&brace_content).ok();
+          }
+        }
+      }
+    }
+  }
+
+  None
+}
+
+// ============================================================================
+// Part 4: Agent Execution - Tool is Result
+// ============================================================================
+
+/// Main entry point: stream answer, detect and execute tools inline
+pub async fn chat_with_tools(
+  messages: Vec<ChatMessage>,
+  tx: mpsc::UnboundedSender<Step>,
+  mut abort_rx: tokio::sync::broadcast::Receiver<()>,
+) -> Result<String> {
+  let client = AiClient::new()?;
+
+  // Try to connect to MCP servers
+  let mcp = match connect_mcp_servers(&tx).await {
+    Some(connections) => connections,
+    None => {
+      return stream_answer_simple(client, messages, tx, abort_rx).await;
+    }
+  };
+
+  // Build system prompt with tools
+  let tools_prompt = build_tools_prompt(&mcp.tools);
   let system_instructions = format!(
-        "You are an AI assistant with access to MCP (Model Context Protocol) tools.\n\n\
-        Available MCP tools:\n{}\n\n\
-        CRITICAL OUTPUT FORMAT RULES:\n\
-        1. To use a tool: Respond with ONLY a JSON object (no other text): {{\"tool_call\": {{\"name\": \"tool_name\", \"arguments\": {{...}}}}}}\n\
-        2. To respond to user: Use normal text (no JSON)\n\
-        3. NEVER mix JSON with other text - the JSON must be the ENTIRE response\n\
-        4. After tool result is returned, you can then respond normally to the user\n\n\
-        Example:\n\
-        User: Search for Rust documentation\n\
-        Assistant: {{\"tool_call\": {{\"name\": \"search-docs\", \"arguments\": {{\"query\": \"Rust\"}}}}}}\n\n\
-        (Then after receiving tool result, you respond with actual answer)",
-        tools_prompt
-    );
+    "You are an AI assistant with access to MCP (Model Context Protocol) tools.\n\n\
+     Available MCP tools:\n{}\n\n\
+     OUTPUT FORMAT:\n\
+     - Your response is a continuous stream (no separation between tools and answer)\n\
+     - To use a tool: embed {{\"tool_call\": {{\"name\": \"tool_name\", \"arguments\": {{...}}}}}} in your response\n\
+     - You can use multiple tools in one response\n\
+     - After tool results are provided, continue your response naturally",
+    tools_prompt
+  );
 
-  // Add tools context to messages (system message for Anthropic API)
-  let mut enhanced_messages: Vec<ChatMessage> = messages.clone();
-  enhanced_messages.insert(
+  // Build messages
+  let mut current_messages = messages.clone();
+  current_messages.insert(
     0,
     ChatMessage {
       role: "system".to_string(),
@@ -194,185 +239,149 @@ pub async fn chat_with_tools(
     },
   );
 
-  // Agent loop
-  let max_iterations = 10;
-  let mut current_messages = enhanced_messages;
+  let mut clients = mcp.clients;
+  let mut tool_counter = 0usize;
+  let mut accumulated = String::new();
+  let mut answer_buffer = String::new();
 
-  for iteration in 0..max_iterations {
-    // Get AI response stream
-    let mut rx = client.chat(current_messages.clone()).await.map_err(|e| {
-      eprintln!("[MCP] AI error: {}", e);
-      AgentError::Ai(e.to_string())
-    })?;
+  // Start streaming
+  let mut rx = client.chat(current_messages.clone()).await?;
+  let mut iteration = 0usize;
 
-    // Stream response: accumulate to detect tool call, or stream directly
-    let mut accumulated = String::new();
-    let mut is_tool_call = false;
+  // Stream loop: detect tools, execute, continue streaming
+  eprintln!("[AGENT] === Starting stream loop (iteration {}) ===", iteration);
 
-    // Read first chunks to check for tool call (tool calls usually start immediately)
-    loop {
-      tokio::select! {
-        // Check for abort signal
-        _ = abort_rx.recv() => {
-          eprintln!("[MCP] Aborted by user");
-          let _ = tx.send(AgentStep::Final);
-          return Ok(String::new());
-        }
-        // Receive stream chunk
-        chunk_result = rx.recv() => {
-          let chunk = match chunk_result {
-            Some(Ok(c)) => c,
-            Some(Err(e)) => {
-              eprintln!("[MCP] Stream error: {}", e);
-              return Err(AgentError::Ai(e.to_string()));
-            }
-            None => break, // Stream ended
-          };
-          accumulated.push_str(&chunk);
-
-          // Check if we have enough content to detect tool call
-          if accumulated.len() > 50 {
-            // Check for likely tool call pattern (starts with { and contains "tool_call")
-            // This prevents streaming incomplete tool_call JSON as chunks
-            let likely_tool_call = accumulated.trim().starts_with('{')
-              && (accumulated.contains("\"tool_call\"")
-                || accumulated.contains("\"Tool_call\"")
-                || accumulated.contains("\"TOOL_CALL\""));
-
-            if likely_tool_call || parse_tool_call(&accumulated).is_ok() {
-              is_tool_call = true;
-              // Collect remaining response
-              loop {
-                tokio::select! {
-                  _ = abort_rx.recv() => {
-                    eprintln!("[MCP] Aborted during tool call collection");
-                    let _ = tx.send(AgentStep::Final);
-                    return Ok(String::new());
-                  }
-                  chunk_result = rx.recv() => {
-                    match chunk_result {
-                      Some(Ok(c)) => accumulated.push_str(&c),
-                      Some(Err(e)) => {
-                        eprintln!("[MCP] Stream error: {}", e);
-                        return Err(AgentError::Ai(e.to_string()));
-                      }
-                      None => break,
-                    }
-                  }
-                }
-              }
-              break;
-            } else {
-              // Not a tool call, stream accumulated and continue streaming
-              if !accumulated.is_empty() {
-                let _ = tx.send(AgentStep::Chunk(accumulated.clone()));
-              }
-
-              // Stream remaining chunks directly
-              loop {
-                tokio::select! {
-                  _ = abort_rx.recv() => {
-                    eprintln!("[MCP] Aborted during streaming");
-                    let _ = tx.send(AgentStep::Final);
-                    return Ok(String::new());
-                  }
-                  chunk_result = rx.recv() => {
-                    match chunk_result {
-                      Some(Ok(chunk)) => {
-                        let _ = tx.send(AgentStep::Chunk(chunk));
-                      }
-                      Some(Err(e)) => {
-                        eprintln!("[MCP] Stream error: {}", e);
-                        let _ = tx.send(AgentStep::Final);
-                        return Err(AgentError::Ai(e.to_string()));
-                      }
-                      None => {
-                        let _ = tx.send(AgentStep::Final);
-                        return Ok(String::new());
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // If accumulated but not decided (short response), check for tool call
-    if !is_tool_call && !accumulated.is_empty() {
-      // Check for likely tool call pattern (same heuristic as above)
-      let likely_tool_call = accumulated.trim().starts_with('{')
-        && (accumulated.contains("\"tool_call\"")
-          || accumulated.contains("\"Tool_call\"")
-          || accumulated.contains("\"TOOL_CALL\""));
-
-      if likely_tool_call || parse_tool_call(&accumulated).is_ok() {
-        is_tool_call = true;
-      } else {
-        // Not a tool call, stream it (no byte-level splitting)
-        let _ = tx.send(AgentStep::Chunk(accumulated.clone()));
-        let _ = tx.send(AgentStep::Final);
+  loop {
+    tokio::select! {
+      _ = abort_rx.recv() => {
+        eprintln!("[AGENT] Aborted by user");
+        let _ = tx.send(Step::answer("", true));
         return Ok(String::new());
       }
-    }
+      chunk_result = rx.recv() => {
+        let chunk = match chunk_result {
+          Some(Ok(c)) => c,
+          Some(Err(e)) => {
+            eprintln!("[AGENT] Stream error: {}", e);
+            let _ = tx.send(Step::answer("", true));
+            return Err(AgentError::Ai(e.to_string()));
+          }
+          None => {
+            // Stream ended naturally
+            eprintln!("[AGENT] Stream ended naturally");
+            if !answer_buffer.is_empty() {
+              let _ = tx.send(Step::answer(&answer_buffer, true));
+            }
+            return Ok(accumulated);
+          }
+        };
 
-    // Handle tool call path
-    if is_tool_call {
-      let response = accumulated;
+        accumulated.push_str(&chunk);
+        answer_buffer.push_str(&chunk);
 
-      match parse_tool_call(&response) {
-        Ok(tool_call) => {
-          // Tool call detected - send as Thinking step (not streamed)
-          let _ = tx.send(AgentStep::Thinking {
-            short: format!("思考中 (第{}轮)...", iteration + 1),
-            content: Some(response.clone()),
-          });
+        eprintln!("[AGENT] Received chunk ({} chars, accumulated: {} chars)", chunk.len(), accumulated.len());
 
-          // Send tool call step
-          let _ = tx.send(AgentStep::ToolCall {
-            name: tool_call.name.clone(),
-            args: tool_call.arguments.clone(),
-          });
+        // Detect tool call in accumulated content
+        while let Some(tool_call) = extract_tool_call(&accumulated) {
+          tool_counter += 1;
+          let tool_id = format!("tool-{}", tool_counter);
 
-          // Execute tool call
-          let tool_result = execute_tool_call(&tool_call, &mut clients)?;
+          eprintln!("[AGENT] === Detected tool call #{} ===", tool_counter);
+          eprintln!("[AGENT] Tool name: {}", tool_call.name);
+          eprintln!("[AGENT] Args: {}", serde_json::to_string(&tool_call.arguments).unwrap_or_default());
 
-          // Send tool result step
-          let _ = tx.send(AgentStep::ToolResult {
-            name: tool_call.name.clone(),
-            result: tool_result.clone(),
-          });
+          // IMPORTANT: Flush answer buffer BEFORE executing tool
+          // This ensures any text before the tool call is displayed first
+          if !answer_buffer.is_empty() {
+            eprintln!("[AGENT] Flushing answer buffer ({} chars) before tool call", answer_buffer.len());
+            let _ = tx.send(Step::answer(&answer_buffer.clone(), false));
+            answer_buffer.clear();
+          }
 
-          // Add assistant message with tool call
+          // Emit: tool pending
+          let _ = tx.send(Step::tool_pending(&tool_id, &tool_call.name, tool_call.arguments.clone()));
+
+          // Emit: tool running
+          let _ = tx.send(Step::tool_running(&tool_id, &tool_call.name, tool_call.arguments.clone()));
+
+          // Execute tool
+          let result = execute_tool_call(&tool_call, &mut clients)?;
+
+          eprintln!("[AGENT] Tool result length: {} chars", result.len());
+
+          // Emit: tool success
+          let _ = tx.send(Step::tool_success(&tool_id, &tool_call.name, tool_call.arguments.clone(), &result));
+
+          // Append tool result to message history for AI context
           current_messages.push(ChatMessage {
             role: "assistant".to_string(),
-            content: response,
+            content: format!("{{\"tool_call\": {{\"name\": \"{}\", \"arguments\": {}}}}}",
+              tool_call.name,
+              serde_json::to_string(&tool_call.arguments).unwrap_or_default()
+            ),
           });
-
-          // Add tool result as user message
           current_messages.push(ChatMessage {
             role: "user".to_string(),
-            content: format!("Tool result: {}", tool_result),
+            content: format!("Tool result: {}", result),
           });
 
-          // Continue loop
+          eprintln!("[AGENT] === Tool call #{} completed, continuing stream ===", tool_counter);
+
+          // Continue streaming from where we left off
+          iteration += 1;
+          rx = client.chat(current_messages.clone()).await?;
+          accumulated.clear();
+
+          eprintln!("[AGENT] === Starting stream loop (iteration {}) ===", iteration);
+
+          // Continue the loop to receive more chunks
+          break;
         }
-        Err(_) => {
-          // Parse failed, stream as normal response
-          for char_chunk in response.chars().collect::<Vec<char>>().chunks(10) {
-            let _ = tx.send(AgentStep::Chunk(char_chunk.iter().collect()));
+
+        // Stream answer chunk (only if no tool call detected)
+        if extract_tool_call(&accumulated).is_none() {
+          if !answer_buffer.is_empty() {
+            let _ = tx.send(Step::answer(&answer_buffer.clone(), false));
+            answer_buffer.clear();
           }
-          let _ = tx.send(AgentStep::Final);
-          return Ok(response);
         }
       }
     }
   }
+}
 
-  // Max iterations reached
-  eprintln!("[MCP] Maximum iterations reached");
-  let _ = tx.send(AgentStep::Final);
-  Err(AgentError::Ai("Maximum iterations reached".to_string()))
+/// Stream answer without tools (fallback)
+async fn stream_answer_simple(
+  client: AiClient,
+  messages: Vec<ChatMessage>,
+  tx: mpsc::UnboundedSender<Step>,
+  mut abort_rx: tokio::sync::broadcast::Receiver<()>,
+) -> Result<String> {
+  let mut rx = client.chat(messages).await?;
+  let mut full = String::new();
+
+  loop {
+    tokio::select! {
+      _ = abort_rx.recv() => {
+        let _ = tx.send(Step::answer("", true));
+        return Ok(String::new());
+      }
+      chunk_result = rx.recv() => {
+        match chunk_result {
+          Some(Ok(chunk)) => {
+            full.push_str(&chunk);
+            let _ = tx.send(Step::answer(&chunk, false));
+          }
+          Some(Err(e)) => {
+            let _ = tx.send(Step::answer("", true));
+            return Err(AgentError::Ai(e.to_string()));
+          }
+          None => {
+            let _ = tx.send(Step::answer("", true));
+            return Ok(full);
+          }
+        }
+      }
+    }
+  }
 }

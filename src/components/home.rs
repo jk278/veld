@@ -23,7 +23,7 @@ pub fn Home() -> Element {
   let window_width = use_window_size();
 
   // Chat messages state
-  let messages = use_signal(Vec::<ChatMessage>::new);
+  let mut messages = use_signal(Vec::<ChatMessage>::new);
   let input_text = use_signal(String::new);
 
   // Auto-scroll state
@@ -56,6 +56,21 @@ pub fn Home() -> Element {
   // Session history state
   let chat_history = use_signal(|| ChatHistoryData::load().unwrap_or_default());
 
+  // Initialize messages from current session on first load
+  use_effect(move || {
+    let history = chat_history();
+    // Only load if messages is empty and we have a current session with messages
+    if messages().is_empty() {
+      if let Some(session) = history.get_current_session() {
+        if !session.messages.is_empty() {
+          let session_msgs: Vec<ChatMessage> =
+            session.messages.iter().cloned().map(Into::into).collect();
+          messages.set(session_msgs);
+        }
+      }
+    }
+  });
+
   // Session list for sidebar (derived from history) - use_memo for auto-update
   let sessions = use_memo(move || {
     let history = chat_history();
@@ -77,13 +92,6 @@ pub fn Home() -> Element {
       .and_then(|c| c.ai.active_provider)
       .unwrap_or_else(|| "claude".to_string())
   });
-
-  // Sync messages with current session
-  use_message_sync(
-    messages.clone(),
-    chat_history.clone(),
-    is_agent_running.clone(),
-  );
 
   // Auto-scroll to bottom when new messages arrive
   use_auto_scroll(

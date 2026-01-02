@@ -1,11 +1,9 @@
-//! MCP Agent Service
-//! MCP 代理服务，负责工具调用与 AI 交互循环
+//! MCP Agent Service - Pure step-based execution
+//! MCP 代理服务 - 纯粹的步骤执行
 
 mod agent;
 mod executor;
-mod parser;
-mod stream;
 mod types;
 
 pub use agent::chat_with_tools;
-pub use types::{AgentError, AgentStep, Result};
+pub use types::{AgentError, Result, Step, ToolCall, ToolStatus};

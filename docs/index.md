@@ -14,6 +14,18 @@
 
 ---
 
+### 🏗️ 架构设计
+
+- **[Agent 链式调用架构](./ARCHITECTURE.md)** ⭐
+  - 设计哲学：步骤流、ID-based 更新、链式调用
+  - 数据流：Agent → Step → UI → History
+  - Step 类型：Tool/Info/Answer
+  - 实现细节：hooks.rs, agent.rs, message_list.rs
+
+  > 🎯 **核心！** 理解此文档是修改 Agent 代码的前提！
+
+---
+
 ### 📖 项目文档
 
 - **[项目计划与进度](../.claude/CLAUDE.md)**
@@ -26,9 +38,9 @@
 
 ## 🚀 快速开始
 
-1. **阅读 API 参考**：先看 `DIoxus_Desktop_API_QuickRef.md` 了解内置能力
-2. **查看示例代码**：在 `src/` 目录下查找相关示例
-3. **参考项目计划**：在 `.claude/CLAUDE.md` 中查看整体规划
+1. **阅读架构文档**：先看 `ARCHITECTURE.md` 理解 Agent 设计
+2. **查看 API 参考**：阅读 `DIoxus_Desktop_API_QuickRef.md` 了解内置能力
+3. **查看示例代码**：在 `src/` 目录下查找相关示例
 
 ---
 
@@ -36,5 +48,7 @@
 
 - ✅ **优先使用内置 API**：dioxus-desktop 已经封装了大部分原生功能
 - ✅ **事件循环自动管理**：所有 Hook 都会自动在正确的时机注册/注销
-- ✅ **参考示例项目**：dioxus 仓库中有完整的示例代码
+- ✅ **理解步骤流**：Agent 输出的是 Step 流，不是独立的消息
+- ✅ **ID 更新机制**：相同 ID 的步骤会更新，而非追加
+
 

@@ -22,5 +22,7 @@
   "rust-analyzer.checkOnSave": false,
   "rust-analyzer.initializeStopped": true,
   // ========== Tasks ==========
-  "task.autoDetect": "off"
+  "task.autoDetect": "off",
+  // ========== Claude Code ==========
+  "claudeCode.initialPermissionMode": "acceptEdits"
 }

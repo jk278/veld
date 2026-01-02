@@ -7,6 +7,7 @@ use crate::components::chat::*;
 use crate::config::AppConfig;
 use crate::hooks::{RESPONSIVE_BREAKPOINT, use_window_size};
 use crate::theme::use_theme;
+use dioxus::logger::tracing::warn;
 use dioxus::prelude::*;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -347,8 +348,8 @@ fn get_active_provider_info() -> (String, bool) {
         None => {
           // Active provider is not usable - show warning
           let active_id = config.ai.active_provider.as_deref().unwrap_or("none");
-          eprintln!(
-            "[WARN] Active provider '{}' is not usable (missing, disabled, or no API key)",
+          warn!(
+            "Active provider '{}' is not usable (missing, disabled, or no API key)",
             active_id
           );
           ("No Usable Provider".to_string(), false)
@@ -357,6 +358,5 @@ fn get_active_provider_info() -> (String, bool) {
     }
     Err(_) => ("No Provider".to_string(), false),
   };
-  println!("[DEBUG] Provider state: name={}, has_key={}", name, has_key);
   (name, has_key)
 }

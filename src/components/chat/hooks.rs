@@ -7,6 +7,7 @@ use crate::config::QuickPrompt;
 use crate::services::agent::Step;
 use crate::services::chat_with_tools;
 use dioxus::document;
+use dioxus::logger::tracing::error;
 use dioxus::prelude::*;
 use std::time::SystemTime;
 
@@ -234,7 +235,7 @@ async fn execute_agent(
   // Spawn agent execution
   tokio::spawn(async move {
     if let Err(e) = chat_with_tools(messages, step_tx, abort_rx).await {
-      eprintln!("[HOOKS] Agent error: {:?}", e);
+      error!("[HOOKS] Agent error: {:?}", e);
     }
   });
 

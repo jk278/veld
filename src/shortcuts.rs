@@ -21,9 +21,6 @@ pub struct ShortcutManager {
 impl ShortcutManager {
   /// Create a new shortcut manager
   pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-    println!(
-      "[GlobalHotkey] Shortcut manager ready - shortcuts registered via use_global_shortcut"
-    );
     Ok(ShortcutManager {
       shortcuts: Vec::new(),
     })
@@ -41,6 +38,6 @@ impl ShortcutManager {
 }
 
 /// Function to manually trigger shortcut (for testing)
-pub fn trigger_shortcut(shortcut: Shortcut) {
-  println!("[Shortcut] Manual trigger: {:?}", shortcut);
+pub fn trigger_shortcut(_shortcut: Shortcut) {
+  // Testing function - no-op in production
 }

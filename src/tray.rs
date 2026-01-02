@@ -17,8 +17,6 @@ pub struct SystemTray {
 impl SystemTray {
   /// Create a new system tray using dioxus-desktop built-in API
   pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-    println!("[SystemTray] Creating tray icon with dioxus-desktop built-in API...");
-
     // Load icon from file (favicon.ico) with specific size
     let icon = Icon::from_path("assets/favicon.ico", None)?;
 
@@ -51,7 +49,6 @@ impl SystemTray {
 
     // Create the tray icon
     let tray_icon = TrayIcon::new(attrs)?;
-    println!("[SystemTray] ✓ Tray icon created successfully with context menu");
 
     Ok(SystemTray {
       _tray_handle: std::sync::Arc::new(tray_icon),

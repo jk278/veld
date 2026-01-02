@@ -4,6 +4,7 @@ use crate::config::AppConfig;
 use crate::routes::Route;
 use crate::shortcuts::ShortcutManager;
 use crate::theme::init_theme;
+use dioxus::logger::tracing::{error, warn};
 use dioxus::prelude::*;
 use dioxus_desktop::{
   tao::window::{Icon, WindowBuilder}, trayicon::TrayIconEvent,
@@ -23,17 +24,17 @@ fn load_window_icon() -> Option<Icon> {
 }
 
 fn main() {
+  // Initialize logger
+  dioxus::logger::init(dioxus::logger::tracing::Level::INFO).expect("logger failed to init");
+
   // Initialize triggers
   ACTIVATE_INPUT_TRIGGER.set(Arc::new(Mutex::new(0))).unwrap();
   NAVIGATE_HOME_TRIGGER.set(Arc::new(Mutex::new(0))).unwrap();
 
   let tray = match crate::tray::SystemTray::new() {
-    Ok(tray) => {
-      println!("System tray initialized successfully");
-      Some(tray)
-    }
+    Ok(tray) => Some(tray),
     Err(e) => {
-      println!("Failed to initialize system tray: {:?}", e);
+      warn!(error = %e, "Failed to initialize system tray");
       None
     }
   };
@@ -101,8 +102,6 @@ fn App() -> Element {
   // Global hotkey handler
   let _shortcut_handle = use_global_shortcut(activate_shortcut().as_str(), move |state| {
     if state == dioxus_desktop::HotKeyState::Pressed {
-      println!("[App] Global hotkey triggered!");
-
       // Restore window
       let window = dioxus::desktop::window();
       window.set_minimized(false);
@@ -121,8 +120,6 @@ fn App() -> Element {
     match event {
       TrayIconEvent::Click { button, .. } => {
         if *button == dioxus_desktop::trayicon::MouseButton::Left {
-          println!("[App] Tray icon clicked!");
-
           let window = dioxus::desktop::window();
           window.set_minimized(false);
 
@@ -140,11 +137,8 @@ fn App() -> Element {
 
   // Tray menu handler - use_muda_event_handler is the correct API in 0.7.2
   use_muda_event_handler(move |event: &dioxus_desktop::muda::MenuEvent| {
-    println!("[App] Menu event: id={:?}", event.id);
     match event.id.as_ref() {
       "show" => {
-        println!("[App] Tray menu 'Show' clicked!");
-
         let window = dioxus::desktop::window();
         window.set_minimized(false);
 
@@ -161,11 +155,8 @@ fn App() -> Element {
   });
 
   use_effect(move || match ShortcutManager::new() {
-    Ok(_) => {
-      println!("Global shortcuts initialized");
-      println!("Press {} to activate chat input", activate_shortcut());
-    }
-    Err(e) => eprintln!("Failed to initialize shortcuts: {:?}", e),
+    Ok(_) => {}
+    Err(e) => error!(error = %e, "Failed to initialize shortcuts"),
   });
 
   rsx! {

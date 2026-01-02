@@ -6,6 +6,7 @@ use super::types::{AgentError, Result, Step, ToolCall};
 use crate::config::AppConfig;
 use crate::services::ai_client::{AiClient, ChatMessage};
 use crate::services::mcp_client::{McpClient, McpTool};
+use dioxus::logger::tracing::{debug, info, warn};
 use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 
@@ -81,20 +82,19 @@ async fn connect_mcp_servers(tx: &mpsc::UnboundedSender<Step>) -> Option<McpConn
     let mut results: Vec<(String, Option<McpClient>, Vec<McpTool>)> = Vec::new();
 
     for (name, command, args, env) in server_configs {
-      eprintln!("[MCP] Connecting to {}...", name);
       match McpClient::connect(&command, &args, env.as_ref()) {
         Ok(mut client) => match client.list_tools() {
           Ok(tools) => {
-            eprintln!("[MCP] {} loaded {} tools", name, tools.len());
+            info!("[MCP] {} loaded {} tools", name, tools.len());
             results.push((name, Some(client), tools));
           }
           Err(e) => {
-            eprintln!("[MCP] Failed to list tools for {}: {}", name, e);
+            warn!("[MCP] Failed to list tools for {}: {}", name, e);
             results.push((name, None, Vec::new()));
           }
         },
         Err(e) => {
-          eprintln!("[MCP] Failed to connect to {}: {}", name, e);
+          warn!("[MCP] Failed to connect to {}: {}", name, e);
           results.push((name, None, Vec::new()));
         }
       }
@@ -179,13 +179,12 @@ fn extract_tool_call(text: &str) -> Option<ToolCall> {
 
             // Safety limit: don't scan too far (but allow large tool calls)
             if brace_content.len() > 50000 {
-              eprintln!("[AGENT] Tool call extraction hit limit, truncating");
               break;
             }
           }
 
           if !brace_content.is_empty() {
-            eprintln!("[AGENT] Extracted tool JSON ({} chars): {}", brace_content.len(), brace_content);
+            debug!("[AGENT] Extracted tool JSON ({} chars)", brace_content.len());
             return serde_json::from_str(&brace_content).ok();
           }
         }
@@ -246,15 +245,10 @@ pub async fn chat_with_tools(
 
   // Start streaming
   let mut rx = client.chat(current_messages.clone()).await?;
-  let mut iteration = 0usize;
-
-  // Stream loop: detect tools, execute, continue streaming
-  eprintln!("[AGENT] === Starting stream loop (iteration {}) ===", iteration);
 
   loop {
     tokio::select! {
       _ = abort_rx.recv() => {
-        eprintln!("[AGENT] Aborted by user");
         let _ = tx.send(Step::answer("", true));
         return Ok(String::new());
       }
@@ -262,13 +256,10 @@ pub async fn chat_with_tools(
         let chunk = match chunk_result {
           Some(Ok(c)) => c,
           Some(Err(e)) => {
-            eprintln!("[AGENT] Stream error: {}", e);
             let _ = tx.send(Step::answer("", true));
             return Err(AgentError::Ai(e.to_string()));
           }
           None => {
-            // Stream ended naturally
-            eprintln!("[AGENT] Stream ended naturally");
             if !answer_buffer.is_empty() {
               let _ = tx.send(Step::answer(&answer_buffer, true));
             }
@@ -279,21 +270,16 @@ pub async fn chat_with_tools(
         accumulated.push_str(&chunk);
         answer_buffer.push_str(&chunk);
 
-        eprintln!("[AGENT] Received chunk ({} chars, accumulated: {} chars)", chunk.len(), accumulated.len());
-
         // Detect tool call in accumulated content
         while let Some(tool_call) = extract_tool_call(&accumulated) {
           tool_counter += 1;
           let tool_id = format!("tool-{}", tool_counter);
 
-          eprintln!("[AGENT] === Detected tool call #{} ===", tool_counter);
-          eprintln!("[AGENT] Tool name: {}", tool_call.name);
-          eprintln!("[AGENT] Args: {}", serde_json::to_string(&tool_call.arguments).unwrap_or_default());
+          info!("[AGENT] Detected tool call: {}", tool_call.name);
 
           // IMPORTANT: Flush answer buffer BEFORE executing tool
           // This ensures any text before the tool call is displayed first
           if !answer_buffer.is_empty() {
-            eprintln!("[AGENT] Flushing answer buffer ({} chars) before tool call", answer_buffer.len());
             let _ = tx.send(Step::answer(&answer_buffer.clone(), false));
             answer_buffer.clear();
           }
@@ -306,8 +292,6 @@ pub async fn chat_with_tools(
 
           // Execute tool
           let result = execute_tool_call(&tool_call, &mut clients)?;
-
-          eprintln!("[AGENT] Tool result length: {} chars", result.len());
 
           // Emit: tool success
           let _ = tx.send(Step::tool_success(&tool_id, &tool_call.name, tool_call.arguments.clone(), &result));
@@ -325,14 +309,9 @@ pub async fn chat_with_tools(
             content: format!("Tool result: {}", result),
           });
 
-          eprintln!("[AGENT] === Tool call #{} completed, continuing stream ===", tool_counter);
-
           // Continue streaming from where we left off
-          iteration += 1;
           rx = client.chat(current_messages.clone()).await?;
           accumulated.clear();
-
-          eprintln!("[AGENT] === Starting stream loop (iteration {}) ===", iteration);
 
           // Continue the loop to receive more chunks
           break;

@@ -74,9 +74,7 @@ pub fn AiProvidersTab(
                 move |_| {
                     if let Ok(mut config) = AppConfig::load() {
                         config.ai.providers.retain(|p| p.id != pid);
-                        if let Err(e) = config.save() {
-                            eprintln!("[Settings] Failed to save provider deletion: {}", e);
-                        }
+                        let _ = config.save();
                         providers.set(config.ai.providers.clone());
                     }
                 }
@@ -101,9 +99,7 @@ pub fn AiProvidersTab(
             move |provider_config| {
                 if let Ok(mut config) = AppConfig::load() {
                     config.update_provider(provider_config);
-                    if let Err(e) = config.save() {
-                        eprintln!("[Settings] Failed to save provider update: {}", e);
-                    }
+                    let _ = config.save();
                     providers.set(config.ai.providers.clone());
                 }
                 editing_provider.set(None);
@@ -171,9 +167,7 @@ fn ProviderListItem(
                     {
                         pr.enabled = e.checked();
                     }
-                    if let Err(err) = config.save() {
-                        eprintln!("[Settings] Failed to save provider toggle: {}", err);
-                    }
+                    let _ = config.save();
                 }
             },
             class: "w-4 h-4 text-primary bg-bg-surface border-border rounded focus:ring-primary focus:ring-2",

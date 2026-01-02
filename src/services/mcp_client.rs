@@ -1,6 +1,7 @@
 //! MCP (Model Context Protocol) client
 //! 简洁的 MCP stdio 客户端实现
 
+use dioxus::logger::tracing::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -84,7 +85,7 @@ impl McpClient {
       let reader = BufReader::new(stderr);
       for line in reader.lines() {
         if let Ok(msg) = line {
-          eprintln!("[MCP STDERR] {}", msg);
+          debug!("[MCP STDERR] {}", msg);
         }
       }
     });
@@ -147,12 +148,12 @@ impl McpClient {
         "params": params_value
     });
 
-    eprintln!("[MCP] Sending: {}", request);
+    debug!("[MCP] Sending: {}", request);
 
     self.write_message(&request.to_string())?;
 
     let response_str = self.read_message()?;
-    eprintln!("[MCP] Received: {}", response_str);
+    debug!("[MCP] Received: {}", response_str);
 
     let response: Value =
       serde_json::from_str(&response_str).map_err(|e| format!("Failed to parse JSON: {}", e))?;
@@ -176,7 +177,7 @@ impl McpClient {
         "params": params_value
     });
 
-    eprintln!("[MCP] Sending notification: {}", notification);
+    debug!("[MCP] Sending notification: {}", notification);
     self.write_message(&notification.to_string())
   }
 

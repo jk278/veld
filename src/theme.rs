@@ -21,8 +21,7 @@ pub struct ThemeContext {
 /// 初始化主题系统并提供上下文
 pub fn init_theme() -> ThemeContext {
   // Load saved config
-  let config = Arc::new(Mutex::new(AppConfig::load().unwrap_or_else(|e| {
-    eprintln!("[Theme] Failed to load config: {}, using defaults", e);
+  let config = Arc::new(Mutex::new(AppConfig::load().unwrap_or_else(|_| {
     AppConfig::default()
   })));
 
@@ -37,7 +36,6 @@ pub fn init_theme() -> ThemeContext {
   use_effect(move || {
     let window = dioxus_desktop::window();
     let initial_theme = window.theme();
-    println!("[Theme] Initial system theme detected: {:?}", initial_theme);
     system_theme_signal.set(initial_theme);
   });
 
@@ -48,7 +46,6 @@ pub fn init_theme() -> ThemeContext {
       ..
     } = event
     {
-      println!("[Theme] System theme changed to: {:?}", new_theme);
       system_theme_signal.set(*new_theme);
       apply_theme_class(theme_mode(), *new_theme);
     }
@@ -79,7 +76,6 @@ pub fn init_theme() -> ThemeContext {
     std::thread::spawn(move || {
       if let Ok(mut config) = config.lock() {
         config.update_theme(mode);
-        println!("[Theme] Theme mode saved: {:?}", mode);
       }
     });
   });

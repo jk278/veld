@@ -76,9 +76,7 @@ pub fn McpServersTab(
                           let name = sname.clone();
                           if let Ok(mut config) = AppConfig::load() {
                               config.mcp.servers.retain(|s| s.name != name);
-                              if let Err(e) = config.save() {
-                                  eprintln!("[Settings] Failed to save server deletion: {}", e);
-                              }
+                              let _ = config.save();
                               servers.set(config.mcp.servers.clone());
                           }
                       }
@@ -116,9 +114,7 @@ pub fn McpServersTab(
                               {
                                   s.enabled = e.checked();
                               }
-                              if let Err(err) = config.save() {
-                                  eprintln!("[Settings] Failed to save server toggle: {}", err);
-                              }
+                              let _ = config.save();
                               servers.set(config.mcp.servers.clone());
                           }
                       }
@@ -201,9 +197,7 @@ pub fn McpServersTab(
                     {
                         *s = new_server;
                     }
-                    if let Err(e) = config.save() {
-                        eprintln!("[Settings] Failed to save server update: {}", e);
-                    }
+                    let _ = config.save();
                     mcp_servers.set(config.mcp.servers.clone());
                 }
                 editing_server.set(None);

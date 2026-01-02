@@ -307,7 +307,6 @@ impl AppConfig {
     let config_path = Self::get_config_path();
 
     if !config_path.exists() {
-      println!("[Config] No config file found, using defaults");
       return Ok(Self::default());
     }
 
@@ -315,7 +314,6 @@ impl AppConfig {
 
     let config: AppConfig = serde_json::from_str(&content).map_err(ConfigError::Json)?;
 
-    println!("[Config] Configuration loaded successfully");
     Ok(config)
   }
 
@@ -337,7 +335,6 @@ impl AppConfig {
 
     fs::write(&config_path, json).map_err(ConfigError::Io)?;
 
-    println!("[Config] Configuration saved successfully");
     Ok(())
   }
 
@@ -347,9 +344,7 @@ impl AppConfig {
     // Save in background thread to avoid blocking UI
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save theme config: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -359,9 +354,7 @@ impl AppConfig {
     // Save in background thread
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save AI config: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -375,9 +368,7 @@ impl AppConfig {
     // Save in background thread
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save AI config: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -389,9 +380,7 @@ impl AppConfig {
     // Save in background thread
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save active provider: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -410,9 +399,7 @@ impl AppConfig {
     // Save in background thread
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save MCP config: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -426,9 +413,7 @@ impl AppConfig {
     // Save in background thread
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save MCP config: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -443,9 +428,7 @@ impl AppConfig {
     // Save in background thread
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save shortcuts config: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -455,9 +438,7 @@ impl AppConfig {
     // Save in background thread
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save UI config: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -467,9 +448,7 @@ impl AppConfig {
     self.ui.window_height = Some(height);
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save window size: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -478,9 +457,7 @@ impl AppConfig {
     self.ui.sidebar_width = width.clamp(200, 400);
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save sidebar width: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -489,9 +466,7 @@ impl AppConfig {
     self.ui.zoom_level = zoom.clamp(0.5, 2.0);
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save zoom level: {}", e);
-      }
+      let _ = config.save();
     });
   }
 
@@ -501,9 +476,7 @@ impl AppConfig {
     // Save in background thread
     let config = self.clone();
     std::thread::spawn(move || {
-      if let Err(e) = config.save() {
-        eprintln!("[Config] Failed to save quick tools config: {}", e);
-      }
+      let _ = config.save();
     });
   }
 }
@@ -512,10 +485,7 @@ impl AppConfig {
 pub fn load_theme_mode() -> Result<Option<ThemeMode>> {
   match AppConfig::load() {
     Ok(config) => Ok(Some(config.theme.mode)),
-    Err(e) => {
-      eprintln!("[Config] Failed to load theme mode: {}", e);
-      Ok(None)
-    }
+    Err(_) => Ok(None),
   }
 }
 

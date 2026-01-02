@@ -32,6 +32,7 @@ pub fn MessageList(
   #[props(default)] edit_state: Option<MessageEdit>,
   #[props(default)] on_edit: Option<EventHandler<(String, String)>>,
   #[props(default)] on_regenerate: Option<EventHandler<String>>,
+  #[props(default)] is_agent_running: bool,
 ) -> Element {
   rsx! {
     div {
@@ -49,6 +50,7 @@ pub fn MessageList(
             edit_state: edit_state.clone(),
             on_edit: on_edit.clone(),
             on_regenerate: on_regenerate.clone(),
+            is_agent_running,
           }
         }
       }
@@ -92,6 +94,7 @@ fn MessageBubble(
   #[props(default)] edit_state: Option<MessageEdit>,
   #[props(default)] on_edit: Option<EventHandler<(String, String)>>,
   #[props(default)] on_regenerate: Option<EventHandler<String>>,
+  #[props(default)] is_agent_running: bool,
 ) -> Element {
   // Check if this is an intermediate step (contains bullet point marker)
   let is_intermediate = message.content.contains("• ");
@@ -128,6 +131,7 @@ fn MessageBubble(
           is_intermediate,
           message_id: message.id.clone(),
           on_regenerate: on_regenerate.clone(),
+          is_agent_running,
         }
       }
     }
@@ -252,6 +256,7 @@ fn AssistantMessageBubble(
   is_intermediate: bool,
   #[props(default)] message_id: String,
   #[props(default)] on_regenerate: Option<EventHandler<String>>,
+  #[props(default)] is_agent_running: bool,
 ) -> Element {
   let is_dark = use_is_dark();
   let mut copy_status = use_signal(|| false);
@@ -281,7 +286,7 @@ fn AssistantMessageBubble(
   };
 
   // Create regenerate handler outside rsx - needs to own the handler
-  let show_regenerate = on_regenerate.is_some();
+  let show_regenerate = on_regenerate.is_some() && !is_agent_running;
   let regenerate_handler = {
     let msg_id = message_id.clone();
     move |_| {
@@ -358,20 +363,22 @@ fn AssistantMessageBubble(
               dark: is_dark(),
             }
           }
-          // Action buttons at bottom
-          div {
-            class: "flex gap-2 mt-3 flex-wrap",
-            button {
-              class: format!("px-3 py-1.5 bg-bg-secondary border border-border rounded text-xs text-text-secondary hover:text-text-primary hover:border-text-muted transition-colors {}", if copy_status() { "bg-success/10 border-success/30 text-success" } else { "" }),
-              onclick: copy_message,
-              disabled: copy_status(),
-              if copy_status() { "已复制!" } else { "复制" }
-            }
-            if show_regenerate {
+          // Action buttons at bottom - only show when not running
+          if !is_agent_running {
+            div {
+              class: "flex gap-2 mt-3 flex-wrap",
               button {
-                class: "px-3 py-1.5 bg-bg-secondary border border-border rounded text-xs text-text-secondary hover:text-text-primary hover:border-text-muted transition-colors",
-                onclick: regenerate_handler,
-                "重新生成"
+                class: format!("px-3 py-1.5 bg-bg-secondary border border-border rounded text-xs text-text-secondary hover:text-text-primary hover:border-text-muted transition-colors {}", if copy_status() { "bg-success/10 border-success/30 text-success" } else { "" }),
+                onclick: copy_message,
+                disabled: copy_status(),
+                if copy_status() { "已复制!" } else { "复制" }
+              }
+              if show_regenerate {
+                button {
+                  class: "px-3 py-1.5 bg-bg-secondary border border-border rounded text-xs text-text-secondary hover:text-text-primary hover:border-text-muted transition-colors",
+                  onclick: regenerate_handler,
+                  "重新生成"
+                }
               }
             }
           }

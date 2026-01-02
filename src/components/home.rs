@@ -268,6 +268,7 @@ pub fn Home() -> Element {
           has_api_key,
           scroll_container_id: scroll_container_id.to_string(),
           edit_state: edit_state(),
+          is_agent_running: is_agent_running(),
           on_edit: Callback::new(move |(message_id, content): (String, String)| {
             if content.is_empty() {
               // Cancel edit

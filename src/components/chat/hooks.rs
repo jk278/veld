@@ -134,46 +134,25 @@ impl MessageOps {
         }
       }
       Step::Answer { content, done, timestamp } => {
-        // DEBUG: Log all Answer steps
-        let content_preview = if content.len() > 50 {
-          format!("{}...", content.chars().take(50).collect::<String>())
-        } else {
-          content.clone()
-        };
-        info!("📨 [ANSWER] content='{}', done={}, session={:?}",
-          content_preview, done, self.current_answer_session);
-
         if !content.is_empty() || *done {
-          // Start new session if needed
           if self.current_answer_session.is_none() && !content.is_empty() {
-            // Use timestamp-based unique ID instead of counter
-            // This avoids conflicts across different conversations
             let timestamp_ms = SystemTime::now()
               .duration_since(SystemTime::UNIX_EPOCH)
               .unwrap()
               .as_millis();
-            let session_id = format!("answer-{}", timestamp_ms);
-            info!("📨 [ANSWER] Creating new session: {}", session_id);
-            self.current_answer_session = Some(session_id);
+            self.current_answer_session = Some(format!("answer-{}", timestamp_ms));
           }
 
-          // Use current session ID or fallback
           let answer_id = self.current_answer_session.clone()
             .unwrap_or_else(|| "answer-current".to_string());
 
           let mut msgs = self.messages.read().clone();
 
-          // Check if answer message already exists
           if let Some(pos) = msgs.iter().position(|m| m.id == answer_id) {
-            // Update existing answer message (append content)
-            info!("📨 [ANSWER] Updating message {}: appending {} chars",
-              answer_id, content.len());
             msgs[pos].content = format!("{}{}", msgs[pos].content, content);
             msgs[pos].timestamp = *timestamp;
             self.messages.set(msgs);
           } else {
-            // Create new answer message
-            info!("📨 [ANSWER] Creating new message: {}", answer_id);
             self.messages.push(ChatMessage {
               id: answer_id.clone(),
               role: "assistant".to_string(),
@@ -182,10 +161,7 @@ impl MessageOps {
             });
           }
 
-          // End session only when stream truly ends (empty content + done)
-          // Don't reset when done=true with content, as more content may follow
           if *done && content.is_empty() {
-            info!("📨 [ANSWER] Stream ending, resetting session");
             self.current_answer_session = None;
           }
         }
@@ -309,54 +285,29 @@ pub fn use_regenerate_coroutine(
     async move {
       use futures_util::stream::StreamExt;
       while let Some((message_id, new_content)) = rx.next().await {
-        info!("🔄 Regenerate: message_id={}, content='{}'", message_id, new_content);
-
         let mut ops = MessageOps::new(messages, chat_history);
-
-        // DEBUG: Log all messages in history before update
-        if let Some(session) = ops.history.read().get_current_session() {
-          info!("🔄 Regenerate: History has {} messages", session.messages.len());
-          for (i, msg) in session.messages.iter().enumerate() {
-            // Safe Unicode character truncation
-            let preview = msg.content.chars().take(50).collect::<String>();
-            info!("🔄 Regenerate:   [{}] id={}, role={}, content_preview={}",
-              i, msg.id, msg.role, preview);
-          }
-        }
-
         ops.history.write().update_message(&message_id, new_content);
 
-        let index = ops.history.read().get_message_index(&message_id);
-        info!("🔄 Regenerate: message index = {:?}", index);
-
-        if let Some(idx) = index {
-          info!("🔄 Regenerate: truncating from index {}", idx + 1);
+        let idx = ops.history.read().get_message_index(&message_id);
+        if let Some(idx) = idx {
           ops.history.write().truncate_from_index(idx + 1);
 
-          // Sync messages signal with truncated history for UI consistency
           let history_msgs: Vec<ChatMessage> = ops
             .history
             .read()
             .get_current_session()
-            .map(|s| {
-              info!("🔄 Regenerate: session has {} messages after truncate", s.messages.len());
-              s.messages.iter().cloned().map(Into::into).collect()
-            })
+            .map(|s| s.messages.iter().cloned().map(Into::into).collect())
             .unwrap_or_default();
           ops.messages.set(history_msgs);
-
-          info!("🔄 Regenerate: UI messages now has {} messages", ops.messages.read().len());
         }
 
         MessageOps::sync_history(&ops.history);
 
-        // Build messages from history
         let api_messages: Vec<crate::services::ChatMessage> = ops
           .history
           .read()
           .get_current_session()
           .map(|s| {
-            info!("🔄 Regenerate: building api_messages from {} messages", s.messages.len());
             s.messages
               .iter()
               .filter(|m| m.role != "system" && !m.id.starts_with("tool-"))
@@ -367,8 +318,6 @@ pub fn use_regenerate_coroutine(
               .collect()
           })
           .unwrap_or_default();
-
-        info!("🔄 Regenerate: sending {} messages to agent", api_messages.len());
 
         execute_agent(api_messages, ops, is_agent_running.clone()).await;
       }

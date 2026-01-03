@@ -28,6 +28,8 @@ pub fn SettingsIcon(class: Option<&'static str>) -> Element {
     rsx! {
         svg {
             class: class.unwrap_or("w-5 h-5"),
+            width: "20",
+            height: "20",
             view_box: "0 0 24 24",
             fill: "none",
             stroke: "currentColor",
@@ -288,6 +290,8 @@ pub fn MinimizeIcon() -> Element {
     rsx! {
         svg {
             class: "w-3 h-3",
+            width: "12",
+            height: "12",
             view_box: "0 0 10 1",
             fill: "currentColor",
             rect {
@@ -306,6 +310,8 @@ pub fn MaximizeIcon() -> Element {
     rsx! {
         svg {
             class: "w-3 h-3",
+            width: "12",
+            height: "12",
             view_box: "0 0 10 10",
             fill: "none",
             stroke: "currentColor",
@@ -326,6 +332,8 @@ pub fn CloseIcon() -> Element {
     rsx! {
         svg {
             class: "w-3 h-3",
+            width: "12",
+            height: "12",
             view_box: "0 0 10 10",
             fill: "none",
             stroke: "currentColor",

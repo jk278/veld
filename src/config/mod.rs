@@ -82,7 +82,6 @@ pub struct ProviderConfig {
   pub model: String,
   pub api_key: Option<String>,
   /// Adapter type: "openai" (OpenAI-compatible) or "anthropic" (Anthropic-compatible)
-  /// If None, genai will auto-detect from model name
   pub adapter_type: Option<String>,
   /// Optional: Custom endpoint URL (overrides default adapter endpoint)
   pub base_url: Option<String>,

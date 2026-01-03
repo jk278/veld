@@ -98,7 +98,7 @@ pub fn parse_markdown_segments(markdown: &str) -> Vec<MarkdownSegment> {
 fn start_tag_to_html(tag: &Tag) -> String {
   match tag {
     Tag::Paragraph => "<p>".to_string(),
-    Tag::Heading { level, .. } => format!("<h{}>", level),
+    Tag::Heading { level, .. } => format!("<{}>", level),
     Tag::BlockQuote(_) => "<blockquote>".to_string(),
     Tag::CodeBlock(_) => "<pre><code>".to_string(),
     Tag::List(_) => "<ul>".to_string(),
@@ -128,7 +128,7 @@ fn start_tag_to_html(tag: &Tag) -> String {
 fn end_tag_to_html(tag_end: &TagEnd) -> String {
   match tag_end {
     TagEnd::Paragraph => "</p>".to_string(),
-    TagEnd::Heading(_) => "</h>".to_string(),
+    TagEnd::Heading(level) => format!("</{}>", level),
     TagEnd::BlockQuote(_) => "</blockquote>".to_string(),
     TagEnd::CodeBlock => "</code></pre>".to_string(),
     TagEnd::List(_) => "</ul>".to_string(),

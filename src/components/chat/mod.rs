@@ -22,7 +22,7 @@ pub use hooks::{
 
 // Re-export handlers
 pub use handlers::{
-  use_delete_session_handler, use_new_chat_handler, use_send_message_handler,
+  load_session_messages, use_delete_session_handler, use_new_chat_handler, use_send_message_handler,
   use_switch_provider_handler, use_switch_session_handler,
 };
 

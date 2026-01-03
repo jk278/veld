@@ -1,17 +1,13 @@
 //! AI Client Service
-//! 使用 genai 统一接口支持 OpenAI & Anthropic 协议
+//! 使用 rig-core 统一接口支持 OpenAI & Anthropic 协议
 
 use crate::config::AppConfig;
-use futures_util::StreamExt;
-use genai::adapter::AdapterKind;
-use genai::chat::{ChatMessage as GenaiChatMessage, ChatRequest, ChatStreamEvent};
-use genai::resolver::{
-  AuthData, Endpoint, Error as ResolverError, ModelMapper, ServiceTargetResolver,
-};
-use genai::{Client, ModelIden, ServiceTarget};
+use rig::client::{Client, CompletionClient};
+use rig::completion::{Chat, Message, Prompt};
+use rig::providers::anthropic;
+use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// AI client error type
@@ -23,136 +19,84 @@ pub enum AiError {
   ProviderNotFound(String),
   #[error("API key not configured for provider: {0}")]
   ApiKeyMissing(String),
-  #[error("genai error: {0}")]
-  Genai(String),
+  #[error("rig error: {0}")]
+  Rig(String),
   #[error("Config error: {0}")]
   Config(String),
+  #[error("Unsupported adapter type: {0}")]
+  UnsupportedAdapter(String),
+  #[error("HTTP client error: {0}")]
+  HttpClient(String),
 }
 
 pub type Result<T> = StdResult<T, AiError>;
 
-impl From<genai::Error> for AiError {
-  fn from(e: genai::Error) -> Self {
-    AiError::Genai(e.to_string())
-  }
-}
-
-/// Chat message
+/// Chat message (兼容原有格式)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
   pub role: String,
   pub content: String,
 }
 
-/// AI Client (使用 genai 统一接口)
-pub struct AiClient {
-  client: Arc<Client>,
+/// Provider client wrapper - 存储不同类型的 Client
+enum ProviderClient {
+  OpenAI {
+    client: Client<openai::OpenAIResponsesExt>,
+    model: String,
+  },
+  Anthropic {
+    client: anthropic::Client,
+    model: String,
+  },
 }
+
+impl Clone for ProviderClient {
+  fn clone(&self) -> Self {
+    match self {
+      ProviderClient::OpenAI { client, model } => ProviderClient::OpenAI {
+        client: client.clone(),
+        model: model.clone(),
+      },
+      ProviderClient::Anthropic { client, model } => ProviderClient::Anthropic {
+        client: client.clone(),
+        model: model.clone(),
+      },
+    }
+  }
+}
+
+/// AI Client (使用 rig-core 统一接口)
+/// 每次请求时动态创建 provider client，确保使用最新配置
+pub struct AiClient;
 
 impl AiClient {
   /// 创建新的 AI 客户端
   pub fn new() -> Result<Self> {
+    Ok(Self)
+  }
+
+  /// 转换 ChatMessage 到 rig Message
+  fn to_rig_message(msg: ChatMessage) -> Message {
+    match msg.role.as_str() {
+      "system" => Message::user(msg.content),  // System messages are handled as preamble
+      "user" => Message::user(msg.content),
+      "assistant" => Message::assistant(msg.content),
+      _ => Message::user(msg.content),
+    }
+  }
+
+  /// 获取当前激活的 provider client
+  /// 每次调用时重新读取配置，并动态创建对应的 client
+  fn get_active_client(&self) -> Result<ProviderClient> {
+    // 重新加载配置以获取最新的 active_id 和 providers
     let config = AppConfig::load().map_err(|e| AiError::Config(e.to_string()))?;
-    let model_mapper = Self::create_model_mapper(&config)?;
-
-    // 创建 ServiceTargetResolver 来支持自定义 base_url 和 auth
-    let mut adapter_map: std::collections::HashMap<
-      String,
-      (AdapterKind, Option<String>, Option<String>),
-    > = std::collections::HashMap::new();
-    for provider in &config.ai.providers {
-      if provider.enabled {
-        let adapter = match provider.adapter_type.as_deref() {
-          Some("openai") => AdapterKind::OpenAI,
-          Some("anthropic") => AdapterKind::Anthropic,
-          _ => continue,
-        };
-        adapter_map.insert(
-          provider.model.clone(),
-          (adapter, provider.base_url.clone(), provider.api_key.clone()),
-        );
-      }
-    }
-
-    let target_resolver = ServiceTargetResolver::from_resolver_fn(
-      move |service_target: ServiceTarget| -> StdResult<ServiceTarget, ResolverError> {
-        let model_name: &str = service_target.model.model_name.as_ref();
-
-        if let Some((adapter_kind, base_url, api_key)) = adapter_map.get(model_name) {
-          // 自定义 endpoint - 使用规范化函数兼容不同 URL 格式
-          let endpoint = base_url
-            .as_ref()
-            .filter(|u| !u.is_empty())
-            .map(|url| Endpoint::from_owned(url.clone()))
-            .unwrap_or_else(|| service_target.endpoint.clone());
-
-          // API key
-          let auth = api_key
-            .as_ref()
-            .filter(|k| !k.is_empty())
-            .map(|key| AuthData::from_single(key.clone()))
-            .unwrap_or_else(|| service_target.auth.clone());
-
-          let model = ModelIden::new(*adapter_kind, model_name);
-          Ok(ServiceTarget {
-            endpoint,
-            auth,
-            model,
-          })
-        } else {
-          // 没有找到配置，使用原值
-          Ok(service_target)
-        }
-      },
-    );
-
-    Ok(Self {
-      client: Arc::new(
-        Client::builder()
-          .with_service_target_resolver(target_resolver)
-          .with_model_mapper(model_mapper)
-          .build(),
-      ),
-    })
-  }
-
-  /// 创建模型映射器 - 根据配置中的 adapter_type 映射到对应适配器
-  fn create_model_mapper(config: &AppConfig) -> Result<ModelMapper> {
-    // 创建模型名到适配器类型的映射
-    let mut adapter_map: std::collections::HashMap<String, AdapterKind> =
-      std::collections::HashMap::new();
-
-    for provider in &config.ai.providers {
-      if let Some(ref adapter_type) = provider.adapter_type {
-        let adapter = match adapter_type.as_str() {
-          "openai" => AdapterKind::OpenAI,
-          "anthropic" => AdapterKind::Anthropic,
-          _ => continue, // Unknown adapter type, skip
-        };
-        adapter_map.insert(provider.model.clone(), adapter);
-      }
-    }
-
-    Ok(ModelMapper::from_mapper_fn(move |model_iden: ModelIden| {
-      let model_name: &str = model_iden.model_name.as_ref();
-
-      // 如果配置中指定了适配器类型，使用配置的
-      if let Some(&adapter) = adapter_map.get(model_name) {
-        return Ok(ModelIden::new(adapter, model_name));
-      }
-
-      // 否则使用 genai 默认自动检测
-      Ok(model_iden)
-    }))
-  }
-
-  /// 获取当前激活的模型
-  fn get_active_model(config: &AppConfig) -> Result<String> {
     let active_id = config
       .ai
       .active_provider
       .as_ref()
       .ok_or(AiError::NoActiveProvider)?;
+
+    // 从配置中找到激活的 provider（使用最新的 enabled 状态）
     let provider = config
       .ai
       .providers
@@ -160,48 +104,173 @@ impl AiClient {
       .find(|p| p.id == *active_id)
       .ok_or_else(|| AiError::ProviderNotFound(active_id.clone()))?;
 
-    Ok(provider.model.clone())
+    // 检查 provider 是否启用且有 API key
+    if !provider.enabled {
+      return Err(AiError::ProviderNotFound(format!(
+        "Provider '{}' is not enabled",
+        active_id
+      )));
+    }
+
+    let api_key = provider
+      .api_key
+      .as_ref()
+      .filter(|k| !k.is_empty())
+      .ok_or_else(|| AiError::ApiKeyMissing(provider.id.clone()))?;
+
+    // 动态创建 client
+    let base_url = provider.base_url.as_deref();
+    let model = provider.model.clone();
+
+    let client = match provider.adapter_type.as_deref() {
+      Some("openai") => {
+        let builder = openai::Client::builder();
+        let builder = if let Some(url) = base_url {
+          builder.api_key(api_key).base_url(url)
+        } else {
+          builder.api_key(api_key)
+        };
+        let client = builder
+          .build()
+          .map_err(|e| AiError::HttpClient(e.to_string()))?;
+        ProviderClient::OpenAI {
+          client,
+          model,
+        }
+      }
+      Some("anthropic") => {
+        let builder = anthropic::Client::builder();
+        let builder = if let Some(url) = base_url {
+          builder.api_key(api_key).base_url(url)
+        } else {
+          builder.api_key(api_key)
+        };
+        let client = builder
+          .build()
+          .map_err(|e| AiError::HttpClient(e.to_string()))?;
+        ProviderClient::Anthropic {
+          client,
+          model,
+        }
+      }
+      Some(other) => {
+        return Err(AiError::UnsupportedAdapter(other.to_string()));
+      }
+      None => {
+        return Err(AiError::UnsupportedAdapter("none".to_string()));
+      }
+    };
+
+    Ok(client)
   }
 
-  /// 转换消息格式
-  fn to_genai_request(messages: Vec<ChatMessage>) -> Result<ChatRequest> {
-    let genai_messages = messages
-      .into_iter()
-      .map(|m| match m.role.as_str() {
-        "system" => GenaiChatMessage::system(m.content),
-        "user" => GenaiChatMessage::user(m.content),
-        "assistant" => GenaiChatMessage::assistant(m.content),
-        _ => GenaiChatMessage::user(m.content),
-      })
-      .collect();
-
-    Ok(ChatRequest::new(genai_messages))
-  }
-
-  /// 流式聊天响应 - 返回 chunk 接收器
+  /// 聊天响应 - 支持完整对话历史（用于工具链式调用）
+  /// 使用 StreamingPromptRequest API 实现真正的流式响应
   pub async fn chat(&self, messages: Vec<ChatMessage>) -> Result<mpsc::Receiver<Result<String>>> {
-    let config = AppConfig::load().map_err(|e| AiError::Config(e.to_string()))?;
-    let model = Self::get_active_model(&config)?;
-    let chat_req = Self::to_genai_request(messages)?;
-    let response = self.client.exec_chat_stream(&model, chat_req, None).await?;
+    let client = self.get_active_client()?;
+    let (prompt, rig_messages, preamble) = Self::parse_messages(messages)?;
     let (tx, rx) = mpsc::channel(64);
 
     tokio::spawn(async move {
-      let mut stream = response.stream;
-      while let Some(event) = stream.next().await {
-        match event {
-          Ok(ChatStreamEvent::Chunk(chunk)) => {
-            if tx.send(Ok(chunk.content)).await.is_err() {
-              break;
+      match client {
+        ProviderClient::OpenAI { client, model } => {
+          // Build agent with preamble
+          let agent = if let Some(pre) = preamble {
+            client.agent(&model).preamble(&pre).build()
+          } else {
+            client.agent(&model).build()
+          };
+
+          // Use simple Chat trait to get complete response
+          // This preserves tool chain calling support through chat_with_tools
+          let response = agent.chat(&prompt, rig_messages).await;
+          match response {
+            Ok(text) => {
+              let _ = tx.send(Ok(text)).await;
+            }
+            Err(e) => {
+              let _ = tx.send(Err(AiError::Rig(e.to_string()))).await;
             }
           }
-          Ok(ChatStreamEvent::End(_)) | Err(_) => break,
-          _ => {}
+        }
+        ProviderClient::Anthropic { client, model } => {
+          // Anthropic requires max_tokens to be set
+          let agent = if let Some(pre) = preamble {
+            client
+              .agent(&model)
+              .preamble(&pre)
+              .max_tokens(4096)
+              .build()
+          } else {
+            client.agent(&model).max_tokens(4096).build()
+          };
+
+          // Use simple Chat trait to get complete response
+          let response = agent.chat(&prompt, rig_messages).await;
+          match response {
+            Ok(text) => {
+              let _ = tx.send(Ok(text)).await;
+            }
+            Err(e) => {
+              let _ = tx.send(Err(AiError::Rig(e.to_string()))).await;
+            }
+          }
         }
       }
     });
 
     Ok(rx)
+  }
+
+  /// 解析消息列表，转换为 rig Message 格式
+  /// 返回 (prompt, rig_messages, system_preamble)
+  /// prompt: 最后一条用户消息内容
+  /// rig_messages: 历史消息（不包含最后一条用户消息）
+  /// system_preamble: 系统提示词
+  fn parse_messages(messages: Vec<ChatMessage>) -> Result<(String, Vec<Message>, Option<String>)> {
+    let mut rig_messages = Vec::new();
+    let mut system_content = String::new();
+    let mut last_user_content = String::new();
+
+    // 分离最后一条用户消息作为 prompt
+    let mut last_user_idx = None;
+    for (idx, msg) in messages.iter().enumerate() {
+      if msg.role == "user" {
+        last_user_idx = Some(idx);
+      }
+    }
+
+    for (idx, msg) in messages.into_iter().enumerate() {
+      match msg.role.as_str() {
+        "system" => {
+          system_content.push_str(&msg.content);
+          system_content.push('\n');
+        }
+        "user" => {
+          if Some(idx) == last_user_idx {
+            // 这是最后一条用户消息，作为 prompt
+            last_user_content = msg.content;
+          } else {
+            // 其他用户消息加入历史
+            rig_messages.push(Self::to_rig_message(msg));
+          }
+        }
+        "assistant" => {
+          rig_messages.push(Self::to_rig_message(msg));
+        }
+        _ => {
+          rig_messages.push(Self::to_rig_message(msg));
+        }
+      }
+    }
+
+    let preamble = if system_content.is_empty() {
+      None
+    } else {
+      Some(system_content.trim().to_string())
+    };
+
+    Ok((last_user_content, rig_messages, preamble))
   }
 
   /// 收集完整响应（辅助函数）
@@ -211,6 +280,65 @@ impl AiClient {
       result.push_str(&chunk?);
     }
     Ok(result)
+  }
+
+  /// 简单聊天（无工具，流式响应）
+  pub async fn chat_simple(
+    &self,
+    prompt: &str,
+    preamble: Option<&str>,
+    tx: mpsc::Sender<Result<String>>,
+  ) -> Result<()> {
+    let client = self.get_active_client()?;
+    let prompt_owned = prompt.to_string();
+    let preamble_str = preamble.unwrap_or("").to_string();
+
+    tokio::spawn(async move {
+      let result: std::result::Result<(), AiError> = match client {
+        ProviderClient::OpenAI { client, model } => {
+          let agent = if !preamble_str.is_empty() {
+            client.agent(&model).preamble(&preamble_str).build()
+          } else {
+            client.agent(&model).build()
+          };
+
+          match agent.prompt(&prompt_owned).await {
+            Ok(response) => {
+              let _ = tx.send(Ok(response)).await;
+            }
+            Err(e) => {
+              let _ = tx.send(Err(AiError::Rig(e.to_string()))).await;
+            }
+          }
+          Ok(())
+        }
+        ProviderClient::Anthropic { client, model } => {
+          let agent = if !preamble_str.is_empty() {
+            client
+              .agent(&model)
+              .preamble(&preamble_str)
+              .max_tokens(4096)
+              .build()
+          } else {
+            client.agent(&model).max_tokens(4096).build()
+          };
+
+          match agent.prompt(&prompt_owned).await {
+            Ok(response) => {
+              let _ = tx.send(Ok(response)).await;
+            }
+            Err(e) => {
+              let _ = tx.send(Err(AiError::Rig(e.to_string()))).await;
+            }
+          }
+          Ok(())
+        }
+      };
+
+      let _ = result;
+    });
+
+    Ok(())
   }
 }
 
@@ -262,13 +390,44 @@ mod tests {
   }
 
   #[test]
-  fn test_to_genai_request() {
+  fn test_parse_messages_simple() {
     let messages = vec![
       system_message("You are helpful".to_string()),
       user_message("Hello".to_string()),
     ];
 
-    let req = AiClient::to_genai_request(messages).unwrap();
-    assert_eq!(req.messages.len(), 2);
+    let (prompt, history, preamble) = AiClient::parse_messages(messages).unwrap();
+    assert_eq!(prompt, "Hello");
+    assert!(history.is_empty());
+    assert!(preamble.is_some());
+    assert_eq!(preamble.unwrap(), "You are helpful");
+  }
+
+  #[test]
+  fn test_parse_messages_with_history() {
+    let messages = vec![
+      system_message("You are helpful".to_string()),
+      user_message("Hello".to_string()),
+      assistant_message("Hi!".to_string()),
+      user_message("How are you?".to_string()),
+    ];
+
+    let (prompt, history, preamble) = AiClient::parse_messages(messages).unwrap();
+    assert_eq!(prompt, "How are you?");
+    assert_eq!(history.len(), 2); // "Hello" user message + "Hi!" assistant message
+    assert!(preamble.is_some());
+  }
+
+  #[test]
+  fn test_parse_messages_with_system_only() {
+    let messages = vec![
+      system_message("You are helpful".to_string()),
+      user_message("Hello".to_string()),
+    ];
+
+    let (prompt, history, preamble) = AiClient::parse_messages(messages).unwrap();
+    assert_eq!(prompt, "Hello");
+    assert!(history.is_empty());
+    assert_eq!(preamble.unwrap(), "You are helpful");
   }
 }

@@ -17,7 +17,7 @@ pub struct ChatMessage {
 
 /// Chat session (a conversation)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ChatSession {
+pub struct Session {
   pub id: String,
   pub title: String,
   pub provider_id: String,
@@ -29,7 +29,7 @@ pub struct ChatSession {
 /// All chat history data
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChatHistoryData {
-  pub sessions: Vec<ChatSession>,
+  pub sessions: Vec<Session>,
   pub current_session_id: Option<String>,
 }
 
@@ -88,14 +88,14 @@ impl ChatHistoryData {
   }
 
   /// Create a new session
-  pub fn new_session(provider_id: &str) -> ChatSession {
+  pub fn new_session(provider_id: &str) -> Session {
     let now = std::time::SystemTime::now()
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap()
       .as_secs();
     let session_id = format!("session-{}", now);
 
-    ChatSession {
+    Session {
       id: session_id.clone(),
       title: "New Chat".to_string(),
       provider_id: provider_id.to_string(),
@@ -106,7 +106,7 @@ impl ChatHistoryData {
   }
 
   /// Get current session
-  pub fn get_current_session(&self) -> Option<&ChatSession> {
+  pub fn get_current_session(&self) -> Option<&Session> {
     self
       .current_session_id
       .as_ref()
@@ -114,7 +114,7 @@ impl ChatHistoryData {
   }
 
   /// Get current session as mutable
-  pub fn get_current_session_mut(&mut self) -> Option<&mut ChatSession> {
+  pub fn get_current_session_mut(&mut self) -> Option<&mut Session> {
     if let Some(ref current_id) = self.current_session_id {
       self.sessions.iter_mut().find(|s| s.id == *current_id)
     } else {
@@ -123,6 +123,7 @@ impl ChatHistoryData {
   }
 
   /// Add message to current session
+  /// If message ID already exists, update it instead of adding duplicate
   pub fn add_message(&mut self, message: ChatMessage) {
     if let Some(session) = self.get_current_session_mut() {
       let is_first_user_message = session.messages.is_empty() && message.role == "user";
@@ -137,7 +138,14 @@ impl ChatHistoryData {
         String::new()
       };
 
-      session.messages.push(message);
+      // Check if message with this ID already exists, update if so
+      if let Some(existing_msg) = session.messages.iter_mut().find(|m| m.id == message.id) {
+        existing_msg.content = message.content;
+        existing_msg.timestamp = message.timestamp;
+      } else {
+        session.messages.push(message);
+      }
+
       let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -182,7 +190,7 @@ impl ChatHistoryData {
   }
 
   /// Get sessions for a specific provider
-  pub fn get_sessions_for_provider(&self, provider_id: &str) -> Vec<&ChatSession> {
+  pub fn get_sessions_for_provider(&self, provider_id: &str) -> Vec<&Session> {
     self
       .sessions
       .iter()

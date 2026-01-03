@@ -4,9 +4,11 @@
 pub mod agent;
 pub mod ai_client;
 pub mod mcp_client;
+pub mod mcp_tool_bridge;
 
 pub use ai_client::{
   assistant_message, system_message, user_message, AiClient, AiError, ChatMessage,
 };
 pub use agent::chat_with_tools;
 pub use mcp_client::{McpClient, McpTool};
+pub use mcp_tool_bridge::{McpToolBridge, McpToolError};

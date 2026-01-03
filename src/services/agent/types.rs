@@ -132,6 +132,15 @@ impl Step {
   }
 }
 
+/// Get current Unix timestamp in seconds
+///
+/// # WARNING: Do NOT use for unique ID generation!
+///
+/// `now()` returns **second-level precision** (as_secs()), which means:
+/// - Multiple calls within the same second return the SAME value
+/// - Using this for IDs causes duplicates when events happen quickly
+///
+/// See `src/services/agent/mod.rs` for full documentation and bug history.
 fn now() -> u64 {
   std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
@@ -165,7 +174,9 @@ impl From<AiError> for AgentError {
 pub type Result<T> = std::result::Result<T, AgentError>;
 
 /// Tool call request from AI
+/// NOTE: Legacy from old implementation, not used with rig-core native tools
 #[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct ToolCall {
   pub name: String,
   pub arguments: Value,

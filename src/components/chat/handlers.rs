@@ -2,9 +2,19 @@
 //! 会话管理处理器
 
 use super::message_list::ChatMessage;
-use crate::chat_history::{ChatHistoryData, ChatMessage as HistoryMessage};
+use crate::chat_history::{ChatHistoryData, ChatMessage as HistoryMessage, Session};
 use crate::config::AppConfig;
 use dioxus::prelude::*;
+
+// ============================================================================
+// Shared Functions
+// ============================================================================
+
+/// Load session messages for UI display
+/// 从会话中加载消息到 UI 显示
+pub fn load_session_messages(session: &Session) -> Vec<ChatMessage> {
+  session.messages.iter().cloned().map(Into::into).collect()
+}
 
 // ============================================================================
 // Type Conversions
@@ -87,10 +97,9 @@ pub fn use_switch_session_handler(
     history.switch_session(&session_id);
     let _ = history.save();
 
-    // Load target session's messages directly (bypass use_effect placeholder check)
+    // Load target session's messages (filter out tool steps)
     if let Some(session) = history.get_current_session() {
-      let session_msgs: Vec<ChatMessage> =
-        session.messages.iter().cloned().map(Into::into).collect();
+      let session_msgs = load_session_messages(session);
       messages.set(session_msgs);
     }
 

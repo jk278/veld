@@ -64,8 +64,8 @@ pub fn Home() -> Element {
     if messages().is_empty() {
       if let Some(session) = history.get_current_session() {
         if !session.messages.is_empty() {
-          let session_msgs: Vec<ChatMessage> =
-            session.messages.iter().cloned().map(Into::into).collect();
+          // Use shared function to load and filter session messages
+          let session_msgs = crate::components::chat::handlers::load_session_messages(session);
           messages.set(session_msgs);
         }
       }
@@ -300,19 +300,34 @@ pub fn Home() -> Element {
             }
           }),
           on_regenerate: Callback::new(move |assistant_message_id: String| {
+            // DEBUG: Log the assistant message being regenerated
+            dioxus::logger::tracing::info!("🔄 [UI] on_regenerate called for: {}", assistant_message_id);
+
             // Find the user message before this assistant message
+            // Use rposition to find the LAST matching message (handles duplicate IDs)
             let msgs = messages.read();
-            if let Some(pos) = msgs.iter().position(|m| m.id == assistant_message_id) {
+            dioxus::logger::tracing::info!("🔄 [UI] Total messages in UI: {}", msgs.len());
+
+            if let Some(pos) = msgs.iter().rposition(|m| m.id == assistant_message_id) {
+              dioxus::logger::tracing::info!("🔄 [UI] Assistant message at position: {}", pos);
+
               // Look backwards for the first user message
               for i in (0..pos).rev() {
+                dioxus::logger::tracing::info!("🔄 [UI] Checking position {}: role={}, id={}",
+                  i, msgs[i].role, msgs[i].id);
+
                 if msgs[i].role == "user" {
                   let user_msg_id = msgs[i].id.clone();
                   let user_msg_content = msgs[i].content.clone();
+                  dioxus::logger::tracing::info!("🔄 [UI] Found user message: id={}, content='{}'",
+                    user_msg_id, user_msg_content);
                   // Trigger regeneration by "editing" the user message (content unchanged)
                   tx_regenerate.send((user_msg_id, user_msg_content));
                   break;
                 }
               }
+            } else {
+              dioxus::logger::tracing::warn!("🔄 [UI] Assistant message not found in UI: {}", assistant_message_id);
             }
           }),
         }

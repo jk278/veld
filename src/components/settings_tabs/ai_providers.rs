@@ -243,9 +243,9 @@ fn ProviderModal(
                 class: "text-xs font-medium text-text-secondary",
                 "Protocol"
               }
-              // Segmented Control - responsive: horizontal on wide, stacked on narrow
+              // Segmented Control - OpenAI / Anthropic
               div {
-                class: "grid grid-cols-3 gap-1 p-1 bg-bg-secondary rounded-lg border border-border sm:gap-0",
+                class: "grid grid-cols-2 gap-1 p-1 bg-bg-secondary rounded-lg border border-border sm:gap-0",
                 // OpenAI
                 button {
                   class: format!(
@@ -258,8 +258,7 @@ fn ProviderModal(
                   ),
                   onclick: move |_| form_adapter_type.set(Some("openai".to_string())),
                   type: "button",
-                  span { class: "hidden sm:inline", "OpenAI" }
-                  span { class: "sm:hidden", "OAI" }
+                  "OpenAI"
                 }
                 // Anthropic
                 button {
@@ -273,22 +272,7 @@ fn ProviderModal(
                   ),
                   onclick: move |_| form_adapter_type.set(Some("anthropic".to_string())),
                   type: "button",
-                  span { class: "hidden sm:inline", "Anthropic" }
-                  span { class: "sm:hidden", "Anth" }
-                }
-                // Auto
-                button {
-                  class: format!(
-                    "px-2 py-1.5 text-xs font-medium rounded transition-all sm:px-3 sm:py-2 sm:text-sm {}",
-                    if form_adapter_type().is_none() {
-                      "bg-bg-surface text-text-primary shadow-sm"
-                    } else {
-                      "text-text-secondary hover:text-text-primary"
-                    }
-                  ),
-                  onclick: move |_| form_adapter_type.set(None),
-                  type: "button",
-                  "Auto"
+                  "Anthropic"
                 }
               }
             }

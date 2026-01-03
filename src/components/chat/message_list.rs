@@ -36,23 +36,40 @@ pub fn MessageList(
   #[props(default)] on_regenerate: Option<EventHandler<String>>,
   #[props(default)] is_agent_running: bool,
 ) -> Element {
+  // Find last assistant message (non-step) for action buttons
+  let last_assistant_msg_id: Option<String> = messages
+    .iter()
+    .rposition(|m| m.role == "assistant" && !m.id.starts_with("tool-") && !m.id.starts_with("conn-"))
+    .and_then(|i| messages.get(i).map(|m| m.id.clone()));
+
+  // Pre-compute show_actions for each message
+  // Only the last assistant message shows actions, and only when not generating
+  let messages_with_actions: Vec<(ChatMessage, bool)> = messages.into_iter()
+    .map(|msg| {
+      let is_last_assistant = last_assistant_msg_id.as_ref() == Some(&msg.id);
+      let show = is_last_assistant && !is_agent_running;
+      (msg, show)
+    })
+    .collect();
+
   rsx! {
     div {
       id: scroll_container_id,
       class: "flex-1 overflow-y-auto px-4 py-4 space-y-4",
 
-      if messages.is_empty() {
+      if messages_with_actions.is_empty() {
         EmptyState {
           has_api_key,
         }
       } else {
-        for msg in messages.into_iter() {
+        for (msg, show_actions) in messages_with_actions.into_iter() {
           MessageBubble {
             message: msg,
             edit_state: edit_state.clone(),
             on_edit: on_edit.clone(),
             on_regenerate: on_regenerate.clone(),
             is_agent_running,
+            show_actions,
           }
         }
       }
@@ -97,9 +114,10 @@ fn MessageBubble(
   #[props(default)] on_edit: Option<EventHandler<(String, String)>>,
   #[props(default)] on_regenerate: Option<EventHandler<String>>,
   #[props(default)] is_agent_running: bool,
+  #[props(default)] show_actions: bool,
 ) -> Element {
-  // Check if this is an intermediate step (contains tool call or info)
-  let is_step = message.id.starts_with("tool-") || message.id.starts_with("info-");
+  // Check if this is an intermediate step (tool call or conn-info)
+  let is_step = message.id.starts_with("tool-") || message.id.starts_with("conn-");
 
   // Check if this message is being edited
   let is_editing = edit_state
@@ -134,6 +152,7 @@ fn MessageBubble(
           message_id: message.id.clone(),
           on_regenerate: on_regenerate.clone(),
           is_agent_running,
+          show_actions,
         }
       }
     }
@@ -250,6 +269,7 @@ fn AssistantMessageBubble(
   #[props(default)] message_id: String,
   #[props(default)] on_regenerate: Option<EventHandler<String>>,
   #[props(default)] is_agent_running: bool,
+  #[props(default)] show_actions: bool,
 ) -> Element {
   let is_dark = use_is_dark();
   let mut copy_status = use_signal(|| false);
@@ -309,7 +329,7 @@ fn AssistantMessageBubble(
             }
           }
           // Action buttons at bottom
-          if !is_agent_running {
+          if show_actions {
             div {
               class: "flex gap-2 mt-3 flex-wrap",
               button {
@@ -333,7 +353,7 @@ fn AssistantMessageBubble(
   }
 }
 
-/// Step renderer - display tool calls and info messages
+/// Step renderer - display tool calls (info steps are hidden)
 #[component]
 fn StepRenderer(step: Step, is_dark: bool) -> Element {
   match step {
@@ -376,14 +396,31 @@ fn StepRenderer(step: Step, is_dark: bool) -> Element {
               }
             }
             if let Some(res) = result {
-              // Try to parse as JSON and extract content
               div {
                 strong { "结果: " }
                 div {
                   class: "mt-2 text-xs text-text-secondary max-h-96 overflow-y-auto",
                   {
-                    let display_content = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&res) {
-                      // MCP format: {"content": [{"text": "...", "type": "text"}]}
+                    // The result may be double-escaped (JSON string inside JSON string)
+                    // Try to parse it, and if it fails or contains escape sequences, unescape it first
+                    let display_content = if res.contains("\\\"") {
+                      // Double-escaped JSON - need to parse twice
+                      if let Ok(inner_json) = serde_json::from_str::<String>(&res) {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&inner_json) {
+                          json["content"]
+                            .as_array()
+                            .and_then(|arr| arr.first())
+                            .and_then(|obj| obj["text"].as_str())
+                            .unwrap_or(&inner_json)
+                            .to_string()
+                        } else {
+                          inner_json
+                        }
+                      } else {
+                        res.clone()
+                      }
+                    } else if let Ok(json) = serde_json::from_str::<serde_json::Value>(&res) {
+                      // Single-layer JSON
                       json["content"]
                         .as_array()
                         .and_then(|arr| arr.first())
@@ -391,6 +428,7 @@ fn StepRenderer(step: Step, is_dark: bool) -> Element {
                         .unwrap_or(&res)
                         .to_string()
                     } else {
+                      // Not JSON, use as-is
                       res.clone()
                     };
                     rsx! {
@@ -411,7 +449,7 @@ fn StepRenderer(step: Step, is_dark: bool) -> Element {
     Step::Info { text, .. } => {
       rsx! {
         div {
-          class: "px-4 py-2 bg-bg-secondary/50 border border-border/50 rounded-lg text-sm text-text-muted",
+          class: "px-4 py-2 bg-bg-secondary/50 border border-border/50 rounded text-sm text-text-muted",
           {text}
         }
       }

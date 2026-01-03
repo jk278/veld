@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install Rust dependencies
+        run: cargo fetch
+
+      - name: Build Tailwind CSS
+        run: pnpm install && pnpm tailwind:build
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Prepare release assets
+        run: |
+          mkdir release
+          copy target/release/veld.exe release/
+          copy README.md release/
+          copy RELEASE_NOTES.md release/RELEASE_NOTES.txt
+
+      - name: Create zip
+        run: Compress-Archive -Path release/* -DestinationPath veld-windows-x64.zip
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: veld-windows-x64.zip
+          draft: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

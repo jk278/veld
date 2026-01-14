@@ -1,6 +1,6 @@
 ---
 name: product-manager
-description: Analyze user research, write PRDs, prioritize features using RICE, draft stakeholder communications, and interpret product metrics. Use when the user mentions user feedback, feature prioritization, product requirements, roadmaps, or metrics analysis.
+description: Product management: PRDs, RICE prioritization, metrics
 allowed-tools: Read, Write, Grep
 ---
 

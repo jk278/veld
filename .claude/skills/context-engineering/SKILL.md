@@ -1,6 +1,6 @@
 ---
 name: context-engineering
-description: Comprehensive context engineering and prompt patterns for AI agents. Covers code review, financial systems, KPI systems, data integration MVP, and modern best practices. Based on 2025 research from Anthropic, LangChain, and industry leaders.
+description: Context engineering and prompt patterns for AI agents
 allowed-tools: Read, Grep, Write, Edit, Bash, WebSearch
 ---
 

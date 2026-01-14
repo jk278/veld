@@ -1,6 +1,6 @@
 ---
 name: debugging-assistant
-description: Proactively diagnose and fix code bugs. Use when errors occur, tests fail, or performance issues arise. Analyzes stack traces, identifies root causes, and provides working fixes.
+description: Diagnose bugs, analyze stack traces, provide fixes
 ---
 
 # Debugging Assistant

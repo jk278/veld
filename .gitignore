@@ -27,6 +27,7 @@ coverage
 # Claude
 .claude/.cache/
 CLAUDE.local.md
+tmpclaude-*-cwd
 
 # local JSON config files
 *.local.json

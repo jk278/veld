@@ -1,6 +1,6 @@
 ---
 name: git-analyzer
-description: Proactively analyze git repository status. Use automatically before git operations and during code reviews. Must be used when examining repository state, commit history, or file changes.
+description: Git repository analysis: status, history, changes
 allowed-tools: Bash(git:log,status,diff)
 ---
 

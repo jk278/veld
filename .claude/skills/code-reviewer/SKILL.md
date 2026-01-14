@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Proactively review code quality and security. Use automatically after code changes, when PRs are created, and before commits. Must be used for security, performance, and best practices reviews.
+description: Code review: security, performance, best practices
 allowed-tools: Read, Grep, Glob, Bash
 ---
 

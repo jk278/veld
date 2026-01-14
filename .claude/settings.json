@@ -1,23 +1,32 @@
 {
-  "includeCoAuthoredBy": false,
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
-    "defaultMode": "acceptEdits",
-    "disableBypassPermissionsMode": "disable",
     "allow": [
+      "Write",
+      "Edit",
       "WebSearch",
       "WebFetch",
+      "Command",
+      "Skill",
       "mcp__ide__getDiagnostics",
-      "mcp__exa__web_search_exa",
-      "mcp__exa__get_code_context_exa",
       "mcp__context7__resolve-library-id",
       "mcp__context7__query-docs",
       "mcp__MiniMax__web_search",
       "mcp__MiniMax__understand_image",
+      "Bash(head:*)",
       "Bash(find:*)",
       "Bash(fd:*)",
       "Bash(dir:*)",
+      "Bash(head:*)",
       "Bash(less:*)",
       "Bash(cat:*)",
+      "Bash(findstr:*)",
       "Bash(sed:*)",
       "Bash(mv:*)",
       "Bash(mkdir:*)",
@@ -26,26 +35,8 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git mv:*)",
-      "Bash(cargo clippy:*)",
-      "Bash(cargo tree:*)",
-      "Bash(cargo doc:*)",
-      "Bash(cargo check:*)",
-      "Bash(cargo run:*)",
-      "Bash(pnpm tailwind:build)",
-      "Bash(pnpm check)",
-      "Command(commit)",
-      "Command(add-rule)",
-      "Command(analyze-doc)",
-      "Command(deslop)",
-      "Command(response-style)",
-      "Skill(code-reviewer)",
-      "Skill(debugging-assistant)",
-      "Skill(git-analyzer)",
-      "Skill(product-manager)",
-      "Skill(ui-ux-principles)",
-      "Skill(context-engineering)"
+      "Bash(bun .claude/scripts/*)"
     ],
-    "ask": [],
     "deny": [
       "Bash(rm -rf /:*)",
       "Bash(chmod:777)",
@@ -57,18 +48,21 @@
       "Read(./**/*.local.json)",
       "Read(./**/secrets/**)",
       "Read(./**/config/*.key)",
-      "Read(./**/credentials/**)"
-    ]
-  },
-  "sandbox": {
-    "enabled": true,
-    "autoAllowBashIfSandboxed": true
+      "Read(./**/credentials/**)",
+      "Read(./**/*security/**)"
+    ],
+    "ask": [],
+    "disableBypassPermissionsMode": "disable"
   },
   "statusLine": {
     "type": "command",
-    "command": "powershell -File \".claude/custom/statusline.ps1\""
+    "command": "powershell -File \".claude/statusline.ps1\""
   },
-  "env": {
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
-  }
+  "enabledPlugins": {
+    "code-simplifier@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "superpowers@superpowers-marketplace": true
+  },
+  "language": "concise english"
 }
